@@ -1,4 +1,4 @@
-package com.adharxhs.corvuss
+package com.adharxhs.corvus
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
