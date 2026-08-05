@@ -31,3 +31,4 @@ _md_files/*
 
 # CodeLens Graph local index
 .codelens/
+/target/
