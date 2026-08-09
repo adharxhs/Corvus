@@ -11,6 +11,10 @@ const (
 	ErrMalformedJSON   ErrorCode = "malformed_json"
 	ErrValidation      ErrorCode = "validation_failed"
 	ErrDispatch        ErrorCode = "dispatch_error"
+	// ErrRelationshipRequired is returned when a message targets a user with
+	// whom the sender has no accepted chat relationship. Clients should
+	// surface this as "request pending," not a generic failure.
+	ErrRelationshipRequired ErrorCode = "relationship_required"
 )
 
 // Error is a structured protocol error sent to clients.

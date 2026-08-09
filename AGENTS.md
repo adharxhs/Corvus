@@ -1,20 +1,20 @@
 # AGENTS.md
 
-Early-stage end-to-end encrypted messaging platform. Three components planned, only the client is scaffolded.
+End-to-end encrypted messaging platform with three components: client (Tauri 2 + React), Go backend, and Rust crypto core.
 
 ## Read the plan first
 
-- `_md_files/` (gitignored, local-only) holds the authoritative implementation plan: `00_Master_Plan.md` (stages, dependency order, hard constraints) through `14_Testing.md`.
+- `_md_files/` (gitignored, local-only) holds the authoritative implementation plan: `00_Master_Plan.md` (stages, dependency order, hard constraints) through `16_Changed_architecture.md` (code review fixes + chat-request / profile-picture design decisions).
 - Implementation order is mandatory and sequential: Environment -> Backend -> DB -> Auth -> WebSocket -> Client -> Cloudflare -> X3DH -> Double Ratchet -> Sender Keys -> Packaging. No stage may start before its dependencies.
 - Plan docs lag the repo: they say `corvus-server/`, `docs/`, and a `crypto/` crate exist. Reality: `server/` is the Go module, plan docs live in `_md_files/`, and `crypto/` + `shared/` are empty stubs. Do not create duplicate dirs to match the docs.
 
 ## Layout and current state
 
 - `client/` — Tauri 2 + React 19 + TypeScript + Vite 7. Only implemented component (still default `greet` scaffold).
-- `server/` — Go 1.26 module named `server` (not `corvus-server`). Dependencies declared in `go.mod` only; no Go source yet. `go build ./...` currently matches no packages.
-- `crypto/` — initialized Rust crate (X3DH, Double Ratchet, Sender Keys). All specified dependencies (`x25519-dalek`, `ed25519-dalek`, `double-ratchet-2`, `aes-gcm`, `rand_core`) are installed and resolved.
+- `server/` — Go 1.26 module named `server` (not `corvus-server`). Full implementation: auth (register/login/JWT), prekey bundle storage, WebSocket server with message dispatch, group management, and database migrations. All via SQLite (modernc.org/sqlite).
+- `crypto/` — Rust crate implementing X3DH, Double Ratchet, Sender Keys, identity/prekey lifecycle, serialization, and an `InMemoryStore` trait boundary. Fully implemented; all 12 tests pass.
 - `shared/` — planned protocol docs/schemas only; must stay documentation-only.
-- No CI, no tests, no linter. Not yet set up in repo.
+- CI, linter: not yet set up in repo.
 
 ## Commands
 
@@ -22,7 +22,40 @@ Early-stage end-to-end encrypted messaging platform. Three components planned, o
 - Full Tauri app: `cd client && npm run tauri dev`
 - Client typecheck/build: `npm run build` (= `tsc && vite build`). No test or lint scripts exist.
 - Backend: `cd server && go build ./...` / `go test ./...`
-- Crypto deps to add per `_md_files/02_Environment_Setup.md`: x25519-dalek, ed25519-dalek, double-ratchet-2, aes-gcm, rand_core.
+- Crypto: `cd crypto && cargo check` / `cargo test`
+
+## API surface (HTTP, after stage 16 additions)
+
+All authenticated routes require `Authorization: Bearer <JWT>`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/register` | Create account |
+| POST | `/login` | Get JWT |
+| GET | `/users/by-username/{username}` | Exact-username lookup (returns `{"id": "..."}` or 404) |
+| GET | `/users/{id}` | ID→username resolution (contact list) |
+| POST | `/chat-request` | Send chat request (`{"recipient_id": "..."}`) |
+| GET | `/chat-requests` | List incoming pending requests |
+| POST | `/chat-request/{requester_id}/accept` | Accept a request |
+| POST | `/chat-request/{requester_id}/reject` | Reject a request (silent) |
+| POST | `/groups` | Create group (auto-adds creator as member) |
+| GET | `/groups/invites` | List pending group invites for authed user |
+| GET | `/groups/{group_id}/members` | List group members |
+| POST | `/groups/{group_id}/invite` | Invite user (requires accepted personal relationship + group membership) |
+| POST | `/groups/{group_id}/invite/accept` | Accept group invite → become member |
+| DELETE | `/groups/{group_id}/member` | Leave group unilaterally |
+| POST | `/prekey` | Upsert own prekey bundle |
+| GET | `/prekey/{id}` | Fetch a user's prekey bundle (ungated) |
+| GET | `/profile-picture/{id}` | Get encrypted profile picture (requires accepted relationship) |
+| POST | `/profile-picture` | Upload encrypted profile picture (must be newer version) |
+| GET | `/ws` | WebSocket connection |
+
+Server-originated WS control messages (not in HTTP surface):
+
+| Type | Payload | When |
+|---|---|---|
+| `presence_snapshot` | `{"online": [user_id, ...]}` | Immediately after a client connects; lists online accepted contacts |
+| `presence` | `{"user_id": "...", "status": "online"\|"offline"}` | Broadcast to online accepted contacts on every connect/disconnect |
 
 ## Machine quirks
 
@@ -35,3 +68,14 @@ Early-stage end-to-end encrypted messaging platform. Three components planned, o
 - Every protocol message is `{version, type, payload}`.
 - Import boundaries are enforced: backend `api -> services -> repository -> database`; React `pages -> components -> services -> websocket`; React only talks to Rust via Tauri commands.
 - Naming: client package/product/Rust lib is `corvuss` (double-s); backend dir and Go module are `server`.
+
+## Design decisions (stage 16)
+
+- **Chat request/accept**: `relationships` table with `(requester_id, recipient_id, status)` unique constraint. State machine: `pending → accepted | rejected`. Accept is bidirectional and permanent. Re-request after rejection is cooldown-gated (24h default, `CHAT_REQUEST_COOLDOWN` env, configurable).
+- **Direct message enforcement**: dispatcher rejects sends to users without an accepted relationship; returns protocol error `relationship_required`.
+- **Contact list**: entirely client-side (no server-side social graph). Client derives from adds + accepted requests + message senders.
+- **Group invites**: require accepted personal-chat relationship between inviter and invitee. Invitee must accept before becoming a member. Leave is unilateral.
+- **Profile pictures**: encrypted client-side under per-account profile key. Server stores only ciphertext + nonce. `GET /profile-picture/{id}` gated behind accepted relationship. Version strictly increases per upload; no key rotation per edit. `profile_picture_updated { version }` control message broadcast to accepted contacts via dispatcher.
+- **Prekey bundle fetch** (`GET /prekey/{id}`) stays ungated regardless of chat-request status; X3DH session establishment is decoupled from the accept step.
+- **Rate-limiting on username lookups**: deferred, standard mitigation to revisit later.
+- **Blocking**: deferred including profile-key rotation on block.

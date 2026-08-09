@@ -47,7 +47,7 @@ func main() {
 	logger.Info("database migrations complete")
 
 	repos := repository.New(db)
-	svcs := services.New(repos)
+	svcs := services.New(repos, cfg.ChatRequestCooldown)
 	authSvc := auth.NewService(repos.Users, cfg.JWTSecret, cfg.JWTExpiration)
 
 	wsServer := websocket.NewServer(repos, logger)

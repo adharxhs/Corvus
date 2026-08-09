@@ -14,6 +14,7 @@ type GroupRepository interface {
 	AddMember(member *models.GroupMember) error
 	RemoveMember(groupID, userID string) error
 	ListMembers(groupID string) ([]models.GroupMember, error)
+	IsMember(groupID, userID string) (bool, error)
 }
 
 type groupRepo struct {
@@ -86,4 +87,19 @@ func (r *groupRepo) ListMembers(groupID string) ([]models.GroupMember, error) {
 		members = append(members, m)
 	}
 	return members, rows.Err()
+}
+
+func (r *groupRepo) IsMember(groupID, userID string) (bool, error) {
+	var one int
+	err := r.db.QueryRow(
+		`SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?`,
+		groupID, userID,
+	).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }

@@ -39,7 +39,7 @@ func setupServer(t *testing.T) (http.Handler, *auth.Service) {
 	}
 
 	repos := repository.New(db)
-	svcs := services.New(repos)
+	svcs := services.New(repos, 24*time.Hour)
 	authSvc := auth.NewService(repos.Users, "test-jwt-secret", 1*time.Hour)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -91,7 +91,7 @@ func TestRegisterAndLoginFlow(t *testing.T) {
 	}
 
 	// Access protected route without token
-	req = httptest.NewRequest("GET", "/users", nil)
+	req = httptest.NewRequest("GET", "/chat-requests", nil)
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
@@ -99,7 +99,7 @@ func TestRegisterAndLoginFlow(t *testing.T) {
 	}
 
 	// Access protected route with token
-	req = httptest.NewRequest("GET", "/users", nil)
+	req = httptest.NewRequest("GET", "/chat-requests", nil)
 	req.Header.Set("Authorization", "Bearer "+loginResp.Token)
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)

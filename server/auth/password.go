@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"fmt"
 	"strings"
 
@@ -55,10 +56,7 @@ func VerifyPassword(password, encoded string) (bool, error) {
 	if len(actual) != len(expected) {
 		return false, nil
 	}
-	for i := range actual {
-		if actual[i] != expected[i] {
-			return false, nil
-		}
-	}
-	return true, nil
+	// ConstantTimeCompare avoids the timing side-channel of an early-exit
+	// byte-by-byte loop when comparing the derived hash.
+	return subtle.ConstantTimeCompare(actual, expected) == 1, nil
 }

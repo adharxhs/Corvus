@@ -44,3 +44,30 @@ func ParseSenderKeyDistribution(e *Envelope) (*SenderKeyDistributionPayload, err
 	}
 	return &p, nil
 }
+
+// ProfilePictureUpdatedPayload is the lightweight control message broadcast to
+// accepted contacts after a profile picture upload.
+type ProfilePictureUpdatedPayload struct {
+	Version int64 `json:"version"`
+}
+
+func ParseProfilePictureUpdated(e *Envelope) (*ProfilePictureUpdatedPayload, error) {
+	var p ProfilePictureUpdatedPayload
+	if err := json.Unmarshal(e.Payload, &p); err != nil {
+		return nil, NewError(ErrInvalidPayload, "bad profile_picture_updated payload")
+	}
+	return &p, nil
+}
+
+// PresenceSnapshotPayload is the server→client snapshot of which accepted
+// contacts are currently online, sent once immediately after connection.
+type PresenceSnapshotPayload struct {
+	Online []string `json:"online"`
+}
+
+// PresencePayload is a live server→client update broadcast to each online
+// accepted contact when a user connects or disconnects.
+type PresencePayload struct {
+	UserID string `json:"user_id"`
+	Status string `json:"status"` // "online" | "offline"
+}

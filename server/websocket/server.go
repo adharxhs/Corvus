@@ -48,8 +48,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	client := NewClient(userID, username, conn)
 	s.registry.Register(client)
+	s.sendPresenceSnapshot(client)
+	s.broadcastPresence(userID, "online")
 	defer func() {
 		s.registry.Unregister(userID)
+		s.broadcastPresence(userID, "offline")
 		client.Close()
 	}()
 
@@ -102,7 +105,7 @@ func (s *Server) readLoop(ctx context.Context, client *Client) {
 			continue
 		}
 
-		if err := s.dispatcher.Dispatch(ctx, client, env); err != nil {
+		if err := s.dispatcher.Dispatch(client, env); err != nil {
 			if pErr, ok := err.(*protocol.Error); ok {
 				client.Send(protocol.EncodeError(pErr.Code, pErr.Message))
 			} else {

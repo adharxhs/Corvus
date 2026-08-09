@@ -4,23 +4,29 @@ import "database/sql"
 
 // Repository bundles the per-table repositories backed by a single *sql.DB.
 type Repository struct {
-	db         *sql.DB
-	Users      UserRepository
-	Prekeys    PrekeyRepository
-	Messages   MessageRepository
-	Groups     GroupRepository
-	SenderKeys SenderKeyRepository
+	db             *sql.DB
+	Users          UserRepository
+	Prekeys        PrekeyRepository
+	Messages       MessageRepository
+	Groups         GroupRepository
+	SenderKeys     SenderKeyRepository
+	Relationships  RelationshipRepository
+	Invites        InviteRepository
+	ProfilePictures ProfilePictureRepository
 }
 
 // New returns a Repository wired to the given database handle.
 func New(db *sql.DB) *Repository {
 	return &Repository{
-		db:         db,
-		Users:      &userRepo{db: db},
-		Prekeys:    &prekeyRepo{db: db},
-		Messages:   &messageRepo{db: db},
-		Groups:     &groupRepo{db: db},
-		SenderKeys: &senderKeyRepo{db: db},
+		db:             db,
+		Users:          &userRepo{db: db},
+		Prekeys:        &prekeyRepo{db: db},
+		Messages:       &messageRepo{db: db},
+		Groups:         &groupRepo{db: db},
+		SenderKeys:     &senderKeyRepo{db: db},
+		Relationships:  &relationshipRepo{db: db},
+		Invites:        &inviteRepo{db: db},
+		ProfilePictures: &profilePictureRepo{db: db},
 	}
 }
 

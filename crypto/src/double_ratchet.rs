@@ -43,6 +43,13 @@ impl DoubleRatchetSession {
 
         let ratchet_clone = self.export_bincode()?;
 
+        // Upstream double-ratchet-2 has no fallible decrypt path: ratchet_decrypt
+        // panics (.unwrap()) on authentication failure / invalid header. We run it
+        // under catch_unwind against a CLONE and only commit the new state to self
+        // on success, so a tampered message neither panics nor corrupts state.
+        // Requires the release profile to keep panic = "unwind" (see Cargo.toml) —
+        // do not "simplify" this by removing the wrapper assuming decrypt is
+        // normally fallible.
         let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
             let mut temp_ratchet = Self::import_bincode(&ratchet_clone).unwrap();
             let decrypted = temp_ratchet.inner.ratchet_decrypt(

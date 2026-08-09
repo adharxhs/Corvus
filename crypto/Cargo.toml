@@ -7,7 +7,10 @@ description = "Corvus shared Rust cryptography core: identity, X3DH, Double Ratc
 [dependencies]
 x25519-dalek = { version = "2.0.1", features = ["static_secrets", "getrandom"] }
 ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
-double-ratchet-2 = "0.4.0-pre.2"
+# 0.4.0-pre.2 is a pre-release with no tagged release; the `major-revision`
+# branch is the canonical source of that line. Pin the exact commit rather
+# than a crates.io semver range so builds are reproducible.
+double-ratchet-2 = { git = "https://github.com/Dione-Software/double-ratchet-2", rev = "2525746439c1cc6ebe62b0b1c59a9031e8469a42" }
 aes-gcm = "0.10.3"
 rand_core = { version = "0.6.4", features = ["getrandom"] }
 hkdf = "0.12"
@@ -15,3 +18,10 @@ sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_bytes = "0.11"
 bincode = "1.3"
+
+# DoubleRatchetSession::decrypt relies on std::panic::catch_unwind to surface
+# upstream authentication failures (double-ratchet-2 has no fallible decrypt
+# path). This profile MUST stay panic="unwind" — do not switch to "abort" or
+# the catch_unwind wrapper becomes a no-op and a tampered ciphertext panics.
+[profile.release]
+panic = "unwind"

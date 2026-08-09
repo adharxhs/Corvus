@@ -1,8 +1,6 @@
 package services
 
 import (
-	"database/sql"
-
 	"server/models"
 	"server/repository"
 )
@@ -27,10 +25,12 @@ func (s *UserService) GetByID(id string) (*models.UserResponse, error) {
 	return &resp, nil
 }
 
-// ListUsers returns all registered users.
-func (s *UserService) ListUsers() ([]models.UserResponse, error) {
-	// The repository only exposes GetByID and GetByUsername; we add a
-	// direct query here for list. A full implementation would add a
-	// List method to the repository interface.
-	return nil, sql.ErrNoRows
+// GetByUsername returns a user by exact username match.
+func (s *UserService) GetByUsername(username string) (*models.UserResponse, error) {
+	u, err := s.users.GetByUsername(username)
+	if err != nil {
+		return nil, mapDBError(err)
+	}
+	resp := u.ToResponse()
+	return &resp, nil
 }
