@@ -4,6 +4,8 @@
 
 The primary deployment target is an Android phone running Termux with Tailscale for public HTTPS exposure. This gives a free stable URL with no VPS.
 
+**Full setup walkthrough (account setup, `tailscaled` flags, Funnel, keeping it alive on Android, client wiring, troubleshooting): see [`docs/tailscale.md`](./tailscale.md).** The quick version:
+
 ### Prerequisites
 
 - Android phone (daily-use device is fine)
@@ -36,15 +38,15 @@ termux-wake-lock
 tailscaled --tun=userspace-networking &
 tailscale up
 
-# Expose port 8080 publicly over HTTPS
-tailscale funnel 8080
+# Expose port 8080 publicly over HTTPS, persistently
+tailscale funnel --bg 8080
 # Prints something like: https://myphone.tailnet-name.ts.net
 
 # Run the server
 JWT_SECRET="$(cat ~/.jwt_secret)" ./corvus-server
 ```
 
-The `tailscale funnel` command gives a stable `https://<name>.ts.net` URL. Friends connect to this URL — they do **not** need Tailscale installed.
+The `tailscale funnel` command gives a stable `https://<name>.ts.net` URL. Friends connect to this URL — they do **not** need Tailscale installed. For why `--tun=userspace-networking` and `--bg` are both required (not optional) on Android, see `docs/tailscale.md`.
 
 ### Persistent JWT_SECRET
 
@@ -73,16 +75,16 @@ JWT_SECRET=<secret> ./corvus-server
 
 All configuration is via environment variables:
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `JWT_SECRET` | Yes | — | Secret key for signing JWTs |
-| `HTTP_PORT` | No | `8080` | Listen port |
-| `DATABASE_PATH` | No | `corvus.db` | SQLite database file path |
-| `CORS_ORIGIN` | No | `*` | Allowed CORS origins (comma-separated) |
-| `JWT_EXPIRATION` | No | `24h` | JWT token lifetime |
-| `CHAT_REQUEST_COOLDOWN` | No | `24h` | Cooldown before re-sending a rejected chat request |
-| `LOG_LEVEL` | No | `info` | Structured log level (`debug`, `info`, `warn`, `error`) |
-| `ENVIRONMENT` | No | `development` | Deployment context label |
+| Variable                | Required | Default       | Description                                             |
+| ----------------------- | -------- | ------------- | ------------------------------------------------------- |
+| `JWT_SECRET`            | Yes      | —             | Secret key for signing JWTs                             |
+| `HTTP_PORT`             | No       | `8080`        | Listen port                                             |
+| `DATABASE_PATH`         | No       | `corvus.db`   | SQLite database file path                               |
+| `CORS_ORIGIN`           | No       | `*`           | Allowed CORS origins (comma-separated)                  |
+| `JWT_EXPIRATION`        | No       | `24h`         | JWT token lifetime                                      |
+| `CHAT_REQUEST_COOLDOWN` | No       | `24h`         | Cooldown before re-sending a rejected chat request      |
+| `LOG_LEVEL`             | No       | `info`        | Structured log level (`debug`, `info`, `warn`, `error`) |
+| `ENVIRONMENT`           | No       | `development` | Deployment context label                                |
 
 ## Exposing to the internet
 

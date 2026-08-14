@@ -36,3 +36,5 @@ src-tauri/gen/
 
 # graphify knowledge-graph output
 graphify-out/
+server/corvus-server
+**/src-tauri/gen/
