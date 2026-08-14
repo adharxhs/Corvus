@@ -6,6 +6,15 @@ The primary deployment target is an Android phone running Termux with Tailscale 
 
 **Full setup walkthrough (account setup, `tailscaled` flags, Funnel, keeping it alive on Android, client wiring, troubleshooting): see [`docs/tailscale.md`](./tailscale.md).** The quick version:
 
+## Host scripts
+
+For building the server and the release APK on a desktop machine, two scripts cover the whole flow:
+
+- `scripts/setup.sh` — one-time setup: creates `.env` if missing, prompts for the Tailscale address, writes it to `client/.env.local`, builds the server binary and the production release APK (`client/Corvus.apk`), then starts the server.
+- `scripts/start_server.sh` — starts the server from existing data (loads `.env`, runs `server/corvus-server`).
+
+The Termux steps below are for running the server directly on the phone instead.
+
 ### Prerequisites
 
 - Android phone (daily-use device is fine)

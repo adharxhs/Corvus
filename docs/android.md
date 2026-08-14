@@ -13,31 +13,20 @@ Corvus builds as a native Android APK via Tauri 2. The APK includes a WebView UI
 
 ## Build commands
 
-### Universal APK (all architectures, ~36 MB)
+### Release APK (universal, all architectures, ~36 MB)
+
+`./scripts/setup.sh` builds this automatically: it sets `VITE_SERVER_URL`, runs the release build, and copies the result to `client/Corvus.apk`.
+
+Manual equivalent:
 
 ```bash
 cd client
 VITE_SERVER_URL=https://your-server-host \
   npm run tauri android build -- --apk --ci
+cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk Corvus.apk
 ```
 
-Output: `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`
-
-### Split per-ABI (~12 MB each, recommended for distribution)
-
-```bash
-cd client
-VITE_SERVER_URL=https://your-server-host \
-  npm run tauri android build -- --apk --split-per-abi --ci
-```
-
-Output per architecture:
-- `src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release.apk` (most phones)
-- `src-tauri/gen/android/app/build/outputs/apk/arm/release/app-arm-release.apk`
-- `src-tauri/gen/android/app/build/outputs/apk/x86_64/release/app-x86_64-release.apk`
-- `src-tauri/gen/android/app/build/outputs/apk/x86/release/app-x86-release.apk`
-
-Share the `arm64` APK with friends — covers the vast majority of Android phones.
+The final artifact is a single `client/Corvus.apk` covering all ABIs. The intermediate output is `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`.
 
 ## Server URL configuration
 
@@ -72,7 +61,7 @@ adb devices
 adb uninstall com.adharxhs.corvus
 
 # Install the release APK
-adb install client/src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release.apk
+adb install client/Corvus.apk
 ```
 
 Or transfer the APK file to the phone and open it in a file manager.
@@ -82,11 +71,11 @@ Or transfer the APK file to the phone and open it in a file manager.
 | | Debug | Release |
 |---|---|---|
 | `usesCleartextTraffic` | `true` (HTTP works) | `false` (HTTPS required) |
-| APK size | ~280 MB (unstripped debug symbols) | ~12 MB per ABI |
+| APK size | ~280 MB (unstripped debug symbols) | ~36 MB (universal, all ABIs) |
 | Keystore | auto-generated debug key | project release keystore |
 | Minification | disabled | enabled |
 
-The large debug APK is normal — it contains full Rust debug symbols for all four CPU architectures. The release APK strips these, giving the ~12 MB size.
+The large debug APK is normal — it contains full Rust debug symbols for all four CPU architectures. The release APK strips these, giving the ~36 MB universal size.
 
 ## Machine quirks
 

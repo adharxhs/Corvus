@@ -17,6 +17,8 @@ End-to-end encrypted messaging platform with three components: client (Tauri 2 +
 - Client typecheck/build: `npm run build` (= `tsc && vite build`). No test or lint scripts exist.
 - Backend: `cd server && go build ./...` / `go test ./...`
 - Crypto: `cd crypto && cargo check` / `cargo test`
+- Server + APK setup: `./scripts/setup.sh` — creates `.env` if missing, prompts for the Tailscale address → writes `client/.env.local`, builds the server binary and the production release APK, then starts the server.
+- Start server (existing data): `./scripts/start_server.sh` — loads `.env` and runs the server.
 
 ## API surface (HTTP)
 
@@ -56,8 +58,8 @@ Server-originated WS control messages (not in HTTP surface):
 
 ## Android packaging
 
-- Release APK build: `cd client && VITE_SERVER_URL=https://<server-host> npm run tauri android build -- --apk --split-per-abi --ci`
-- Signed APKs land in `client/src-tauri/gen/android/app/build/outputs/apk/{arm64,arm,x86,x86_64}/release/`. Universal build (all ABIs): omit `--split-per-abi` → 36 MB; per-ABI ~12 MB.
+- Release APK build: `./scripts/setup.sh` (builds a universal all-ABI production release and copies it to `client/Corvus.apk`).
+- Equivalent manual command: `cd client && VITE_SERVER_URL=https://<server-host> npm run tauri android build -- --apk --ci` → output `client/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`, then rename to `Corvus.apk` (universal, all ABIs, ~36 MB).
 - Signing keystore: `client/src-tauri/keystore/corvus-release.keystore` (gitignored; properties in `keystore.properties`). Must keep the same keystore for upgrades over an installed app.
 - Server URL baked in at build time via `VITE_SERVER_URL`. The client derives both HTTP and WS URLs from this single value (`https://` → `wss://` automatically). Falls back to `http://localhost:8080` if unset.
 - Release builds disable `usesCleartextTraffic` by default — HTTPS endpoints required.

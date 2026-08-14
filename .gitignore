@@ -38,3 +38,4 @@ src-tauri/gen/
 graphify-out/
 server/corvus-server
 **/src-tauri/gen/
+*.apk

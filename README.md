@@ -9,7 +9,7 @@ All core subsystems are implemented and tested. The project is in the packaging/
 - **Backend** (Go): fully implemented — auth, groups, chat requests, relationships, profile pictures, prekey bundles, presence, WebSocket message dispatch.
 - **Client** (Tauri 2 + React 19): fully implemented — auth, chat UI, groups, contacts, settings/themes, profile picture picker, protocol layer, WebSocket service with reconnection.
 - **Crypto** (Rust crate): fully implemented — X3DH, Double Ratchet, Sender Keys, identity/prekey lifecycle, serialization, storage trait.
-- **Android APK**: signed release build configured, split-per-ABI support.
+- **Android APK**: signed release build configured, single `Corvus.apk` output.
 - **Server deployment**: runs on Termux via Tailscale Funnel (free HTTPS, no VPS required).
 
 ## Architecture
@@ -85,6 +85,20 @@ go build ./cmd/server
 JWT_SECRET=<secret> go run ./cmd/server    # listens on :8080
 ```
 
+### Server + APK setup
+
+One-time setup: creates `.env` if missing, asks for the Tailscale IP/hostname, writes `client/.env.local`, builds the production release APK as `client/Corvus.apk`, then starts the server.
+
+```bash
+./scripts/setup.sh
+```
+
+Start the server with existing data (loads `.env`):
+
+```bash
+./scripts/start_server.sh
+```
+
 ### Crypto tests
 
 ```bash
@@ -94,13 +108,15 @@ cargo test
 
 ### Android APK
 
+Built automatically by `./scripts/setup.sh` (asks for the Tailscale address, then builds a signed production release):
+
 ```bash
 cd client
 VITE_SERVER_URL=https://<your-name>.<tailnet>.ts.net \
-  npm run tauri android build -- --apk --split-per-abi --ci
+  npm run tauri android build -- --apk --ci
 ```
 
-Signed APKs: `src-tauri/gen/android/app/build/outputs/apk/<arch>/release/`
+Signed APK: `client/Corvus.apk` (universal, all ABIs)
 
 ### Server on Android (Termux)
 

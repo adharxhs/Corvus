@@ -240,12 +240,14 @@ Verify in the Tauri window's devtools (Network tab) that requests go to the `.ts
 
 ### Android APK build
 
-Baked in at build time, since a shipped binary has no runtime env:
+Baked in at build time, since a shipped binary has no runtime env. `./scripts/setup.sh` handles this end to end — it asks for the address above, writes it to `client/.env.local`, builds the release APK, and copies it to `client/Corvus.apk`.
+
+Manual equivalent:
 
 ```fish
 cd client
 set -x VITE_SERVER_URL https://<your-funnel-hostname>.ts.net
-npm run tauri android build -- --apk --split-per-abi --ci
+npm run tauri android build -- --apk --ci
 ```
 
 See `docs/android.md` for the full build/signing process.
