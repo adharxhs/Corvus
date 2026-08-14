@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"net/http"
 
 	"server/auth"
@@ -154,4 +155,78 @@ func (h *GroupHandler) Leave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *GroupHandler) UploadPicture(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	groupID := r.PathValue("group_id")
+	if groupID == "" {
+		writeError(w, http.StatusBadRequest, "missing group_id")
+		return
+	}
+
+	var req models.GroupProfilePictureRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+
+	ciphertext, err1 := base64.StdEncoding.DecodeString(req.Ciphertext)
+	nonce, err2 := base64.StdEncoding.DecodeString(req.Nonce)
+	if err1 != nil || err2 != nil {
+		writeError(w, http.StatusBadRequest, "malformed base64")
+		return
+	}
+
+	if err := h.groups.UploadGroupPicture(groupID, userID, ciphertext, nonce, req.Version); err != nil {
+		switch err := err.(type) {
+		case services.ErrInvalidInput:
+			writeError(w, http.StatusBadRequest, err.Error())
+		case services.ErrNotMember:
+			writeError(w, http.StatusForbidden, err.Error())
+		case services.ErrConflict:
+			writeError(w, http.StatusConflict, err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to upload group profile picture")
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *GroupHandler) GetPicture(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	groupID := r.PathValue("group_id")
+	if groupID == "" {
+		writeError(w, http.StatusBadRequest, "missing group_id")
+		return
+	}
+
+	pic, err := h.groups.GetGroupPicture(groupID, userID)
+	if err != nil {
+		switch err := err.(type) {
+		case services.ErrNotMember:
+			writeError(w, http.StatusForbidden, err.Error())
+		case services.ErrNotFound:
+			writeError(w, http.StatusNotFound, err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to get group profile picture")
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, models.GroupProfilePictureResponse{
+		Ciphertext: base64.StdEncoding.EncodeToString(pic.Ciphertext),
+		Nonce:      base64.StdEncoding.EncodeToString(pic.Nonce),
+		Version:    pic.Version,
+	})
 }

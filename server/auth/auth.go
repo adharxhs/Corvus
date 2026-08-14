@@ -62,7 +62,12 @@ func (s *Service) Register(username, password string) (*models.AuthResponse, err
 		return nil, err
 	}
 
-	return &models.AuthResponse{User: user.ToResponse()}, nil
+	token, err := s.jwt.Issue(user.ID, user.Username)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.AuthResponse{Token: token, User: user.ToResponse()}, nil
 }
 
 // Login verifies credentials and returns a JWT on success.
@@ -90,6 +95,34 @@ func (s *Service) Login(username, password string) (*models.LoginResponse, error
 		Token: token,
 		User:  user.ToResponse(),
 	}, nil
+}
+
+// ChangePassword updates a user's password after verifying their current password.
+func (s *Service) ChangePassword(userID, currentPassword, newPassword string) error {
+	if len(newPassword) < 8 || len(newPassword) > 256 {
+		return ErrInvalidRequest
+	}
+
+	user, err := s.users.GetByID(userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrInvalidCredentials
+		}
+		return err
+	}
+
+	ok, err := VerifyPassword(currentPassword, user.PasswordHash)
+	if err != nil || !ok {
+		return ErrInvalidCredentials
+	}
+
+	newHash, err := HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	user.PasswordHash = newHash
+	return s.users.Update(user)
 }
 
 func trimSpace(s string) string {

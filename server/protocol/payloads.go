@@ -6,6 +6,9 @@ import "encoding/json"
 type DirectMessagePayload struct {
 	RecipientID string `json:"recipient_id"`
 	Content     string `json:"content"`
+	// SenderID is set by the server from the authenticated connection; the
+	// receiving client uses it to attribute the message to a conversation.
+	SenderID string `json:"sender_id"`
 }
 
 // ParseDirectMessage extracts the typed payload from an envelope.
@@ -21,6 +24,8 @@ func ParseDirectMessage(e *Envelope) (*DirectMessagePayload, error) {
 type GroupMessagePayload struct {
 	GroupID string `json:"group_id"`
 	Content string `json:"content"`
+	// SenderID is set by the server from the authenticated connection.
+	SenderID string `json:"sender_id"`
 }
 
 func ParseGroupMessage(e *Envelope) (*GroupMessagePayload, error) {
@@ -55,6 +60,21 @@ func ParseProfilePictureUpdated(e *Envelope) (*ProfilePictureUpdatedPayload, err
 	var p ProfilePictureUpdatedPayload
 	if err := json.Unmarshal(e.Payload, &p); err != nil {
 		return nil, NewError(ErrInvalidPayload, "bad profile_picture_updated payload")
+	}
+	return &p, nil
+}
+
+// GroupProfilePictureUpdatedPayload is the lightweight control message broadcast
+// to group members after a group profile picture upload.
+type GroupProfilePictureUpdatedPayload struct {
+	GroupID string `json:"group_id"`
+	Version int64  `json:"version"`
+}
+
+func ParseGroupProfilePictureUpdated(e *Envelope) (*GroupProfilePictureUpdatedPayload, error) {
+	var p GroupProfilePictureUpdatedPayload
+	if err := json.Unmarshal(e.Payload, &p); err != nil {
+		return nil, NewError(ErrInvalidPayload, "bad group_profile_picture_updated payload")
 	}
 	return &p, nil
 }

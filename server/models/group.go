@@ -28,3 +28,23 @@ type CreateGroupRequest struct {
 type AddMemberRequest struct {
 	UserID string `json:"user_id"`
 }
+
+type GroupProfilePicture struct {
+	GroupID    string
+	Ciphertext []byte
+	Nonce      []byte
+	Version    int64
+	UpdatedAt  int64
+}
+
+type GroupProfilePictureRequest struct {
+	Ciphertext string `json:"ciphertext"`
+	Nonce      string `json:"nonce"`
+	Version    int64  `json:"version"`
+}
+
+type GroupProfilePictureResponse struct {
+	Ciphertext string `json:"ciphertext"`
+	Nonce      string `json:"nonce"`
+	Version    int64  `json:"version"`
+}

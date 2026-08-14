@@ -42,7 +42,7 @@ func setupTestServer(t *testing.T) (*httptest.Server, *auth.Service, *repository
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	wsServer := ws.NewServer(repos, logger)
-	router := api.NewRouter(logger, authSvc, svcs, wsServer)
+	router := api.NewRouter(logger, authSvc, svcs, wsServer, "*")
 
 	ts := httptest.NewServer(router)
 	t.Cleanup(ts.Close)
@@ -63,6 +63,20 @@ func connectWS(t *testing.T, serverURL, token string) *websocket.Conn {
 	})
 	if err != nil {
 		t.Fatalf("ws dial failed: %v", err)
+	}
+	t.Cleanup(func() { conn.Close(websocket.StatusNormalClosure, "done") })
+	return conn
+}
+
+func connectWSWithQueryToken(t *testing.T, serverURL, token string) *websocket.Conn {
+	t.Helper()
+	wsURL := "ws" + strings.TrimPrefix(serverURL, "http") + "/ws?token=" + token
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("ws query-token dial failed: %v", err)
 	}
 	t.Cleanup(func() { conn.Close(websocket.StatusNormalClosure, "done") })
 	return conn
@@ -113,8 +127,8 @@ func TestWebSocketDirectMessaging(t *testing.T) {
 		UpdatedAt:   now,
 	})
 
-	aliceConn := connectWS(t, ts.URL, aliceLogin.Token)
-	bobConn := connectWS(t, ts.URL, bobLogin.Token)
+	aliceConn := connectWSWithQueryToken(t, ts.URL, aliceLogin.Token)
+	bobConn := connectWSWithQueryToken(t, ts.URL, bobLogin.Token)
 
 	payload, _ := json.Marshal(protocol.DirectMessagePayload{
 		RecipientID: bobResp.User.ID,

@@ -1,25 +1,130 @@
 # Corvus
 
-A secure, privacy-focused messaging platform built with Rust.
+An end-to-end encrypted messaging platform with a Go backend, Tauri 2 client, and a Rust crypto core.
 
-Corvus is currently in development.
+## Status
+
+All core subsystems are implemented and tested. The project is in the packaging/deployment phase.
+
+- **Backend** (Go): fully implemented — auth, groups, chat requests, relationships, profile pictures, prekey bundles, presence, WebSocket message dispatch.
+- **Client** (Tauri 2 + React 19): fully implemented — auth, chat UI, groups, contacts, settings/themes, profile picture picker, protocol layer, WebSocket service with reconnection.
+- **Crypto** (Rust crate): fully implemented — X3DH, Double Ratchet, Sender Keys, identity/prekey lifecycle, serialization, storage trait.
+- **Android APK**: signed release build configured, split-per-ABI support.
+- **Server deployment**: runs on Termux via Tailscale Funnel (free HTTPS, no VPS required).
+
+## Architecture
+
+```
+┌──────────────────────────────────────┐
+│           Client (Tauri 2)           │
+│  React 19 UI  ←→  Rust crypto core   │
+│  (no plaintext in TS)                │
+└──────────────┬───────────────────────┘
+               │ HTTP + WebSocket
+┌──────────────▼───────────────────────┐
+│          Go Backend (server/)         │
+│  Auth, routing, WS, SQLite           │
+│  (no crypto, no plaintext)           │
+└──────────────────────────────────────┘
+```
 
 ## Tech Stack
 
-- Rust
-- Tauri
-- TypeScript
-- React
-- Go
-- SQLite
+- **Client**: Tauri 2, React 19, TypeScript, Vite 7
+- **Backend**: Go 1.26, net/http, modernc.org/sqlite
+- **Crypto**: Rust (x25519-dalek, ed25519-dalek, double-ratchet-2, aes-gcm)
+- **Deployment**: Termux + Tailscale Funnel
 
-## Goals
+## Repository Structure
 
-- End-to-end encrypted messaging
-- Cross-platform support
-- Privacy by design
-- Open-source
+```
+corvus/
+├── client/                 # Tauri 2 + React
+│   ├── src/                # React components, services, protocol, websocket
+│   └── src-tauri/          # Rust core (lib.rs, profile_key.rs)
+├── server/                 # Go backend module
+│   ├── api/                # HTTP handlers + router
+│   ├── auth/               # JWT, password hashing
+│   ├── websocket/          # WS server, registry, dispatcher, presence
+│   ├── database/           # SQLite, migrations
+│   ├── services/           # Business logic
+│   ├── repository/         # DB access
+│   ├── models/             # Data structures
+│   ├── protocol/           # Wire protocol
+│   ├── middleware/         # CORS, auth, recovery
+│   ├── config/             # Env-based configuration
+│   ├── logging/            # Structured logging
+│   └── cmd/server/main.go  # Entry point
+├── crypto/                 # Rust crypto library
+│   └── src/                # x3dh, double_ratchet, sender_keys, identity, prekeys
+└── shared/                 # Protocol docs/schemas (documentation only)
+```
+
+## Quick Start
+
+### Client (dev)
+
+```bash
+cd client
+npm install
+npm run dev          # Vite on port 1420
+```
+
+### Full Tauri app
+
+```bash
+cd client
+npm run tauri dev    # WEBKIT_DISABLE_DMABUF_RENDERER=1 needed on Linux
+```
+
+### Backend
+
+```bash
+cd server
+go build ./cmd/server
+JWT_SECRET=<secret> go run ./cmd/server    # listens on :8080
+```
+
+### Crypto tests
+
+```bash
+cd crypto
+cargo test
+```
+
+### Android APK
+
+```bash
+cd client
+VITE_SERVER_URL=https://<your-name>.<tailnet>.ts.net \
+  npm run tauri android build -- --apk --split-per-abi --ci
+```
+
+Signed APKs: `src-tauri/gen/android/app/build/outputs/apk/<arch>/release/`
+
+### Server on Android (Termux)
+
+```bash
+pkg install golang tailscale
+tailscaled --tun=userspace-networking &
+tailscale up
+tailscale funnel 8080    # gives stable HTTPS URL
+JWT_SECRET=<saved-secret> ./corvus-server
+```
+
+## Environment Variables
+
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `JWT_SECRET` | Yes | — | Signing key for JWTs |
+| `HTTP_PORT` | No | `8080` | Server listen port |
+| `DATABASE_PATH` | No | `corvus.db` | SQLite file path |
+| `CORS_ORIGIN` | No | `*` | Allowed origins |
+| `CHAT_REQUEST_COOLDOWN` | No | `24h` | Cooldown after re-request |
+| `LOG_LEVEL` | No | `info` | Logging verbosity |
+| `ENVIRONMENT` | No | `development` | Deployment context |
+| `VITE_SERVER_URL` | No | `http://localhost:8080` | Server URL baked into APK at build time |
 
 ## License
 
-Licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+Apache License 2.0. See [LICENSE](LICENSE).

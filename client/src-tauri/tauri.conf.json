@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "corvus",
+  "productName": "Corvus",
   "version": "0.1.0",
   "identifier": "com.adharxhs.corvus",
   "build": {
@@ -12,9 +12,10 @@
   "app": {
     "windows": [
       {
-        "title": "corvus",
+        "title": "Corvus",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "zoomHotkeysEnabled": false
       }
     ],
     "security": {

@@ -13,6 +13,7 @@ type Config struct {
 	JWTSecret           string
 	JWTExpiration       time.Duration
 	ChatRequestCooldown time.Duration
+	CORSOrigin          string
 	LogLevel            string
 	Environment         string
 }
@@ -35,6 +36,7 @@ func Load() (*Config, error) {
 		JWTSecret:           getEnv("JWT_SECRET", ""),
 		JWTExpiration:       getEnvDuration("JWT_EXPIRATION", defaultJWTExpiration),
 		ChatRequestCooldown: getEnvDuration("CHAT_REQUEST_COOLDOWN", defaultChatRequestCooldown),
+		CORSOrigin:          getEnv("CORS_ORIGIN", "*"),
 		LogLevel:            getEnv("LOG_LEVEL", defaultLogLevel),
 		Environment:         getEnv("ENVIRONMENT", defaultEnvironment),
 	}

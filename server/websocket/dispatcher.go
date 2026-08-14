@@ -34,6 +34,8 @@ func (d *Dispatcher) Dispatch(sender *Client, env *protocol.Envelope) error {
 		return d.handleSenderKeyDistribution(sender, env)
 	case protocol.TypeProfilePictureUpdated:
 		return d.handleProfilePictureUpdated(sender, env)
+	case protocol.TypeGroupProfilePictureUpdated:
+		return d.handleGroupProfilePictureUpdated(sender, env)
 	default:
 		return protocol.NewError(protocol.ErrInvalidType, "unsupported message type")
 	}
@@ -56,6 +58,11 @@ func (d *Dispatcher) handleDirectMessage(sender *Client, env *protocol.Envelope)
 	if !accepted {
 		return protocol.NewError(protocol.ErrRelationshipRequired,
 			"no accepted relationship with recipient; request pending")
+	}
+
+	payload.SenderID = sender.UserID
+	if err := d.reencodePayload(env, payload); err != nil {
+		return err
 	}
 
 	data, err := protocol.Encode(env)
@@ -90,6 +97,11 @@ func (d *Dispatcher) handleGroupMessage(sender *Client, env *protocol.Envelope) 
 
 	members, err := d.repos.Groups.ListMembers(payload.GroupID)
 	if err != nil {
+		return err
+	}
+
+	payload.SenderID = sender.UserID
+	if err := d.reencodePayload(env, payload); err != nil {
 		return err
 	}
 
@@ -196,6 +208,61 @@ func (d *Dispatcher) handleProfilePictureUpdated(sender *Client, env *protocol.E
 			if err := d.repos.Messages.Insert(msg); err != nil {
 				d.logger.Error("failed to queue offline profile picture update",
 					"recipient", peerID, "error", err)
+			}
+		}
+	}
+	return nil
+}
+
+// reencodePayload re-marshals a modified payload back into the envelope so
+// server-stamped fields (sender_id) reach the recipient.
+func (d *Dispatcher) reencodePayload(env *protocol.Envelope, payload any) error {
+	raw, err := protocol.Encode(payload)
+	if err != nil {
+		return err
+	}
+	env.Payload = raw
+	return nil
+}
+
+func (d *Dispatcher) handleGroupProfilePictureUpdated(sender *Client, env *protocol.Envelope) error {
+	payload, err := protocol.ParseGroupProfilePictureUpdated(env)
+	if err != nil {
+		return err
+	}
+	if payload.Version <= 0 {
+		return protocol.NewError(protocol.ErrInvalidPayload, "group profile picture version must be positive")
+	}
+
+	members, err := d.repos.Groups.ListMembers(payload.GroupID)
+	if err != nil {
+		d.logger.Error("failed to list members for group profile picture update",
+			"sender", sender.UserID, "group", payload.GroupID, "error", err)
+		return err
+	}
+
+	data, err := protocol.Encode(env)
+	if err != nil {
+		return err
+	}
+
+	for _, member := range members {
+		if member.UserID == sender.UserID {
+			continue
+		}
+		recipient, online := d.registry.Get(member.UserID)
+		if online {
+			recipient.Send(data)
+		} else {
+			msg := &models.PendingMessage{
+				ID:          uuid.New().String(),
+				RecipientID: member.UserID,
+				Ciphertext:  data,
+				Delivered:   false,
+			}
+			if err := d.repos.Messages.Insert(msg); err != nil {
+				d.logger.Error("failed to queue offline group profile picture update",
+					"recipient", member.UserID, "group", payload.GroupID, "error", err)
 			}
 		}
 	}

@@ -8,19 +8,21 @@ import (
 	"server/repository"
 )
 
-// GroupService manages groups, membership, and group invites.
+// GroupService manages groups, membership, group invites, and group profile pictures.
 type GroupService struct {
-	groups       repository.GroupRepository
-	invites      repository.InviteRepository
-	relationships repository.RelationshipRepository
+	groups              repository.GroupRepository
+	invites             repository.InviteRepository
+	relationships       repository.RelationshipRepository
+	groupProfilePictures repository.GroupProfilePictureRepository
 }
 
 // NewGroupService returns a GroupService.
-func NewGroupService(groups repository.GroupRepository, invites repository.InviteRepository, relationships repository.RelationshipRepository) *GroupService {
+func NewGroupService(groups repository.GroupRepository, invites repository.InviteRepository, relationships repository.RelationshipRepository, groupProfilePictures repository.GroupProfilePictureRepository) *GroupService {
 	return &GroupService{
-		groups:       groups,
-		invites:      invites,
-		relationships: relationships,
+		groups:              groups,
+		invites:             invites,
+		relationships:       relationships,
+		groupProfilePictures: groupProfilePictures,
 	}
 }
 
@@ -164,4 +166,64 @@ func (s *GroupService) Leave(groupID, userID string) error {
 		return ErrNotFound("not a member of the group")
 	}
 	return err
+}
+
+// UploadGroupPicture stores a new encrypted group profile picture. The caller
+// must be a member of the group. Version must be strictly greater than the
+// currently stored version.
+func (s *GroupService) UploadGroupPicture(groupID, userID string, ciphertext, nonce []byte, version int64) error {
+	if len(ciphertext) == 0 {
+		return ErrInvalidInput("ciphertext must not be empty")
+	}
+	if len(nonce) != 12 {
+		return ErrInvalidInput("nonce must be 12 bytes (AES-GCM)")
+	}
+	if version <= 0 {
+		return ErrInvalidInput("version must be positive")
+	}
+
+	isMember, err := s.groups.IsMember(groupID, userID)
+	if err != nil {
+		return err
+	}
+	if !isMember {
+		return ErrNotMember("caller is not a member of the group")
+	}
+
+	existing, err := s.groupProfilePictures.Get(groupID)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if err == nil && existing.Version >= version {
+		return ErrConflict("version must be newer than the stored version")
+	}
+
+	return s.groupProfilePictures.Upsert(&models.GroupProfilePicture{
+		GroupID:    groupID,
+		Ciphertext: ciphertext,
+		Nonce:      nonce,
+		Version:    version,
+		UpdatedAt:  time.Now().Unix(),
+	})
+}
+
+// GetGroupPicture returns the encrypted group profile picture for the given
+// group if the caller is a member.
+func (s *GroupService) GetGroupPicture(groupID, userID string) (*models.GroupProfilePicture, error) {
+	isMember, err := s.groups.IsMember(groupID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !isMember {
+		return nil, ErrNotMember("caller is not a member of the group")
+	}
+
+	pic, err := s.groupProfilePictures.Get(groupID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound("no profile picture for this group")
+		}
+		return nil, err
+	}
+	return pic, nil
 }

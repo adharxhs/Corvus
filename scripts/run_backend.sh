@@ -24,5 +24,8 @@ if [ -z "$JWT_SECRET" ]; then
     exit 1
 fi
 
+export CORS_ORIGIN="${CORS_ORIGIN:-*}"
+
 echo "==> Starting Corvus Server..."
+echo "==> CORS_ORIGIN: $CORS_ORIGIN"
 exec "$SERVER_DIR/corvus-server"

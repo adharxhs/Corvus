@@ -56,12 +56,12 @@ pub fn initiate(
         key_material.extend_from_slice(dh4.as_bytes());
     }
 
-    // DEVIATION from the Signal X3DH spec: the spec prefixes the HKDF IKM with
-    // 0xFF * 32 as a domain-separation constant (and uses salt = zeroed). Here
-    // IKM is DH1‖DH2‖DH3‖(DH4) directly. This is not exploitable with a single
-    // fixed curve (X25519) — the constant only disambiguates across curves —
-    // but it means this is NOT full X3DH spec compliance. Do not mistake it for
-    // such. Responder side mirrors this exact construction.
+    // DEVIATION from the standard X3DH spec: the spec prefixes the HKDF IKM
+    // with 0xFF * 32 as a domain-separation constant (and uses salt = zeroed).
+    // Here IKM is DH1‖DH2‖DH3‖(DH4) directly. This is not exploitable with a
+    // single fixed curve (X25519) — the constant only disambiguates across
+    // curves — but it means this is NOT full X3DH spec compliance. Do not
+    // mistake it for such. Responder side mirrors this exact construction.
 
     let salt = [0u8; 32];
     let h = Hkdf::<Sha256>::new(Some(&salt), &key_material);

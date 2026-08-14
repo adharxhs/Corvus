@@ -17,7 +17,7 @@ type Router struct {
 }
 
 // NewRouter creates and initializes the main HTTP router.
-func NewRouter(logger *slog.Logger, authSvc *auth.Service, svcs *services.Services, wsHandler http.Handler) http.Handler {
+func NewRouter(logger *slog.Logger, authSvc *auth.Service, svcs *services.Services, wsHandler http.Handler, corsOrigin string) http.Handler {
 	r := &Router{
 		mux:      http.NewServeMux(),
 		logger:   logger,
@@ -41,6 +41,7 @@ func NewRouter(logger *slog.Logger, authSvc *auth.Service, svcs *services.Servic
 	// User resolution
 	r.mux.Handle("GET /users/by-username/{username}", requireAuth(http.HandlerFunc(NewUserHandler(svcs.Users).GetByUsername)))
 	r.mux.Handle("GET /users/{id}", requireAuth(http.HandlerFunc(NewUserHandler(svcs.Users).GetByID)))
+	r.mux.Handle("POST /user/password", requireAuth(http.HandlerFunc(authHandler.ChangePassword)))
 
 	// Chat requests (pending → accepted | rejected)
 	relationshipHandler := NewRelationshipHandler(svcs.Relationships)
@@ -57,6 +58,8 @@ func NewRouter(logger *slog.Logger, authSvc *auth.Service, svcs *services.Servic
 	r.mux.Handle("POST /groups/{group_id}/invite", requireAuth(http.HandlerFunc(groupHandler.Invite)))
 	r.mux.Handle("POST /groups/{group_id}/invite/accept", requireAuth(http.HandlerFunc(groupHandler.AcceptInvite)))
 	r.mux.Handle("DELETE /groups/{group_id}/member", requireAuth(http.HandlerFunc(groupHandler.Leave)))
+	r.mux.Handle("POST /groups/{group_id}/profile-picture", requireAuth(http.HandlerFunc(groupHandler.UploadPicture)))
+	r.mux.Handle("GET /groups/{group_id}/profile-picture", requireAuth(http.HandlerFunc(groupHandler.GetPicture)))
 
 	// Prekey bundles (X3DH, ungated by chat-request status)
 	r.mux.Handle("POST /prekey", requireAuth(http.HandlerFunc(prekeyHandler.Upsert)))
@@ -72,6 +75,7 @@ func NewRouter(logger *slog.Logger, authSvc *auth.Service, svcs *services.Servic
 
 	return middleware.Chain(
 		r.mux,
+		middleware.CORS(corsOrigin),
 		middleware.Recover(logger),
 		middleware.RequestLogger(logger),
 	)

@@ -14,9 +14,9 @@ dist-ssr
 .envrc
 .env
 *.db
-corvus-server
-server/corvus-server
-_md_files/*
+keystore.properties
+**/keystore/
+src-tauri/gen/
 
 # Editor directories and files
 .vscode/*
@@ -33,3 +33,6 @@ _md_files/*
 .codelens/
 **/target/
 .agents/
+
+# graphify knowledge-graph output
+graphify-out/

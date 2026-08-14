@@ -22,7 +22,7 @@ type Services struct {
 func New(repos *repository.Repository, chatRequestCooldown time.Duration) *Services {
 	return &Services{
 		Users:         NewUserService(repos.Users),
-		Groups:        NewGroupService(repos.Groups, repos.Invites, repos.Relationships),
+		Groups:        NewGroupService(repos.Groups, repos.Invites, repos.Relationships, repos.GroupProfilePictures),
 		Prekeys:       NewPrekeyService(repos.Prekeys),
 		Relationships: NewRelationshipService(repos.Users, repos.Relationships, chatRequestCooldown),
 		ProfilePictures: NewProfilePictureService(repos.ProfilePictures, repos.Relationships),

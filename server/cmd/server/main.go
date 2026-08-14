@@ -51,7 +51,7 @@ func main() {
 	authSvc := auth.NewService(repos.Users, cfg.JWTSecret, cfg.JWTExpiration)
 
 	wsServer := websocket.NewServer(repos, logger)
-	router := api.NewRouter(logger, authSvc, svcs, wsServer)
+	router := api.NewRouter(logger, authSvc, svcs, wsServer, cfg.CORSOrigin)
 
 	httpServer := &http.Server{
 		Addr:         ":" + cfg.HTTPPort,

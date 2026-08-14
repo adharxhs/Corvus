@@ -12,6 +12,10 @@ func RequireAuth(jwt *auth.JWTManager) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, ok := auth.ExtractBearerToken(r)
+			if !ok && r.URL.Path == "/ws" {
+				token = r.URL.Query().Get("token")
+				ok = token != ""
+			}
 			if !ok {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)

@@ -20,7 +20,7 @@ func Open(path string) (*sql.DB, error) {
 	if strings.Contains(dsn, "?") {
 		sep = "&"
 	}
-	dsn = dsn + sep + "_pragma=foreign_keys(1)"
+	dsn = dsn + sep + "_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
 
 	db, err := sql.Open(driverName, dsn)
 	if err != nil {

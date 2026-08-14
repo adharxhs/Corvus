@@ -31,8 +31,8 @@ func TestDatabaseMigrateCreatesSchema(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&applied); err != nil {
 		t.Fatalf("reading schema_migrations: %v", err)
 	}
-	if applied != 9 {
-		t.Errorf("expected 9 applied migrations, got %d", applied)
+	if applied != 10 {
+		t.Errorf("expected 10 applied migrations, got %d", applied)
 	}
 
 	expected := []string{
@@ -45,6 +45,7 @@ func TestDatabaseMigrateCreatesSchema(t *testing.T) {
 		"relationships",
 		"group_invites",
 		"profile_pictures",
+		"group_profile_pictures",
 	}
 	for _, name := range expected {
 		var count int
@@ -71,8 +72,8 @@ func TestMigrateIsIdempotent(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&applied); err != nil {
 		t.Fatalf("reading schema_migrations: %v", err)
 	}
-	if applied != 9 {
-		t.Errorf("expected 9 applied migrations after rerun, got %d", applied)
+	if applied != 10 {
+		t.Errorf("expected 10 applied migrations after rerun, got %d", applied)
 	}
 }
 
