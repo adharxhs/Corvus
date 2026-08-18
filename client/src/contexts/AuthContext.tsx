@@ -3,6 +3,8 @@ import type { AuthContextValue } from "../types/auth";
 import { loginRequest, registerRequest } from "../services/auth";
 import { clearSession, loadSession, saveSession } from "../services/storage";
 import { setApiToken, setOnUnauthorized } from "../services/api";
+import { initCrypto, hasIdentity } from "../services/crypto";
+import { uploadPrekeyBundle } from "../services/prekeys";
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -34,6 +36,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const response = await loginRequest(username, password);
     saveSession(response);
     setApiToken(response.token);
+
+    // Initialize crypto identity if needed
+    try {
+      const hasId = await hasIdentity();
+      if (!hasId) {
+        const bundle = await initCrypto();
+        await uploadPrekeyBundle({
+          identity_key: bundle.identity_key,
+          signed_prekey: bundle.signed_prekey,
+          signed_prekey_signature: bundle.signed_prekey_signature,
+          one_time_prekey: bundle.one_time_prekey?.public_key,
+        });
+      }
+    } catch {
+      // Crypto init failed, continue without E2EE
+    }
+
     setState((prev) => ({
       ...prev,
       user: response.user,
@@ -46,6 +65,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const response = await registerRequest(username, password);
     saveSession(response);
     setApiToken(response.token);
+
+    // Initialize crypto identity for new account
+    try {
+      const bundle = await initCrypto();
+      await uploadPrekeyBundle({
+        identity_key: bundle.identity_key,
+        signed_prekey: bundle.signed_prekey,
+        signed_prekey_signature: bundle.signed_prekey_signature,
+        one_time_prekey: bundle.one_time_prekey?.public_key,
+      });
+    } catch {
+      // Crypto init failed, continue without E2EE
+    }
+
     setState((prev) => ({
       ...prev,
       user: response.user,

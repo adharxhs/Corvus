@@ -12,8 +12,10 @@ export interface Conversation {
 export interface ChatMessage {
   id: string;
   peerId: string;
+  senderId?: string;
   content: string;
   direction: "in" | "out";
   timestamp: number;
   status?: "pending" | "sent";
+  system?: boolean;
 }

@@ -4,12 +4,12 @@ An end-to-end encrypted messaging platform with a Go backend, Tauri 2 client, an
 
 ## Status
 
-All core subsystems are implemented and tested. The project is in the packaging/deployment phase.
+All core subsystems are implemented, tested, and integrated. The project is in the packaging/deployment phase.
 
-- **Backend** (Go): fully implemented — auth, groups, chat requests, relationships, profile pictures, prekey bundles, presence, WebSocket message dispatch.
-- **Client** (Tauri 2 + React 19): fully implemented — auth, chat UI, groups, contacts, settings/themes, profile picture picker, protocol layer, WebSocket service with reconnection.
-- **Crypto** (Rust crate): fully implemented — X3DH, Double Ratchet, Sender Keys, identity/prekey lifecycle, serialization, storage trait.
-- **Android APK**: signed release build configured, single `Corvus.apk` output.
+- **Backend** (Go): fully implemented — auth, groups (create/get/rename with names, invites, membership), chat requests, relationships, profile pictures, prekey bundles, presence, WebSocket message dispatch, member-join broadcasts.
+- **Client** (Tauri 2 + React 19): fully implemented — auth, chat UI with persistent header and profile pics on every message, groups with names and rename UI, contacts, settings/themes, profile picture picker, protocol layer, WebSocket service with reconnection, participants list with avatars/presence in group settings. **E2EE wired**: all direct and group messages are encrypted via the Rust crypto core before sending and decrypted on receipt.
+- **Crypto** (Rust crate): fully implemented — X3DH, Double Ratchet, Sender Keys, identity/prekey lifecycle, serialization, storage trait. **Linked to Tauri client** via `crypto_manager.rs` + `commands.rs` (15 IPC commands) and `services/crypto.ts` (TypeScript invoke wrappers).
+- **Android APK**: signed release build configured, single `Corvus.apk` output. Includes the full Rust crypto stack (X3DH, Double Ratchet, Sender Keys) compiled into the native binary.
 - **Server deployment**: runs on Termux via Tailscale Funnel (free HTTPS, no VPS required).
 
 ## Architecture
@@ -41,7 +41,12 @@ All core subsystems are implemented and tested. The project is in the packaging/
 corvus/
 ├── client/                 # Tauri 2 + React
 │   ├── src/                # React components, services, protocol, websocket
-│   └── src-tauri/          # Rust core (lib.rs, profile_key.rs)
+│   │   └── services/crypto.ts  # TypeScript invoke wrappers for Rust crypto
+│   └── src-tauri/          # Rust core
+│       └── src/
+│           ├── lib.rs              # Tauri command registration + state
+│           ├── crypto_manager.rs   # Crypto state wrapper (identity, sessions, sender keys)
+│           └── commands.rs         # 15 Tauri IPC commands for E2EE
 ├── server/                 # Go backend module
 │   ├── api/                # HTTP handlers + router
 │   ├── auth/               # JWT, password hashing

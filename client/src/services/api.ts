@@ -17,9 +17,6 @@ export function isNetworkError(err: unknown): boolean {
 }
 
 export async function probeServer(timeoutMs = 5000): Promise<boolean> {
-  if (typeof navigator !== "undefined" && navigator.onLine === false) {
-    return false;
-  }
   try {
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -46,17 +43,23 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     headers.set("Authorization", `Bearer ${authToken}`);
   }
 
-  if (typeof navigator !== "undefined" && navigator.onLine === false) {
-    throw new ApiError("You're offline. Check your connection.", 0);
-  }
-
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
-      headers,
-    });
-  } catch {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 15_000);
+    try {
+      response = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
+    } finally {
+      window.clearTimeout(timer);
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new ApiError("Request timed out. Check your connection.", 0);
+    }
     throw new ApiError("Unable to reach the server. Check your connection.", 0);
   }
 

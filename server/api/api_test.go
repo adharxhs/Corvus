@@ -43,7 +43,7 @@ func setupServer(t *testing.T) (http.Handler, *auth.Service) {
 	authSvc := auth.NewService(repos.Users, "test-jwt-secret", 1*time.Hour)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	router := api.NewRouter(logger, authSvc, svcs, &dummyWSHandler{}, "*")
+	router := api.NewRouter(logger, authSvc, svcs, &dummyWSHandler{}, "*", nil)
 	return router, authSvc
 }
 

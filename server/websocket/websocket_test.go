@@ -1,9 +1,11 @@
 package websocket_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -42,7 +44,7 @@ func setupTestServer(t *testing.T) (*httptest.Server, *auth.Service, *repository
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	wsServer := ws.NewServer(repos, logger)
-	router := api.NewRouter(logger, authSvc, svcs, wsServer, "*")
+	router := api.NewRouter(logger, authSvc, svcs, wsServer, "*", wsServer)
 
 	ts := httptest.NewServer(router)
 	t.Cleanup(ts.Close)
@@ -385,5 +387,83 @@ func TestPresenceOfflineBroadcast(t *testing.T) {
 	}
 	if presence.UserID != bobResp.User.ID || presence.Status != "offline" {
 		t.Errorf("expected bob offline, got %+v", presence)
+	}
+}
+
+// TestWebSocketChatRequestNotification verifies that chat request lifecycle
+// events (send/accept) are pushed to connected clients in real time.
+func TestWebSocketChatRequestNotification(t *testing.T) {
+	ts, authSvc, _ := setupTestServer(t)
+
+	aliceResp, err := authSvc.Register("alice", "password123")
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+	aliceLogin, _ := authSvc.Login("alice", "password123")
+
+	bobResp, err := authSvc.Register("bob", "password123")
+	if err != nil {
+		t.Fatalf("register bob: %v", err)
+	}
+	bobLogin, _ := authSvc.Login("bob", "password123")
+
+	aliceConn := connectWSWithQueryToken(t, ts.URL, aliceLogin.Token)
+	bobConn := connectWSWithQueryToken(t, ts.URL, bobLogin.Token)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Alice sends a chat request to Bob over HTTP.
+	body, _ := json.Marshal(models.ChatRequestRequest{RecipientID: bobResp.User.ID})
+	req, _ := http.NewRequest("POST", ts.URL+"/chat-request", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+aliceLogin.Token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("send chat request: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", resp.StatusCode)
+	}
+
+	// Bob should receive a pending chat_request_updated push.
+	bobEnv := readMessage(t, bobConn, ctx)
+	if bobEnv.Type != protocol.TypeChatRequestUpdated {
+		t.Fatalf("expected chat_request_updated, got %s", bobEnv.Type)
+	}
+	var notif protocol.ChatRequestUpdatedPayload
+	if err := json.Unmarshal(bobEnv.Payload, &notif); err != nil {
+		t.Fatalf("unmarshal notification: %v", err)
+	}
+	if notif.RequesterID != aliceResp.User.ID || notif.RecipientID != bobResp.User.ID || notif.Status != "pending" {
+		t.Errorf("unexpected pending notification: %+v", notif)
+	}
+
+	// Bob accepts the request.
+	accBody, _ := json.Marshal(models.ChatRequestRequest{})
+	accReq, _ := http.NewRequest("POST", ts.URL+"/chat-request/"+aliceResp.User.ID+"/accept", bytes.NewReader(accBody))
+	accReq.Header.Set("Authorization", "Bearer "+bobLogin.Token)
+	accReq.Header.Set("Content-Type", "application/json")
+	accResp, err := http.DefaultClient.Do(accReq)
+	if err != nil {
+		t.Fatalf("accept chat request: %v", err)
+	}
+	accResp.Body.Close()
+	if accResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", accResp.StatusCode)
+	}
+
+	// Alice should receive an accepted push.
+	aliceEnv := readMessage(t, aliceConn, ctx)
+	if aliceEnv.Type != protocol.TypeChatRequestUpdated {
+		t.Fatalf("expected chat_request_updated for alice, got %s", aliceEnv.Type)
+	}
+	var accepted protocol.ChatRequestUpdatedPayload
+	if err := json.Unmarshal(aliceEnv.Payload, &accepted); err != nil {
+		t.Fatalf("unmarshal accepted: %v", err)
+	}
+	if accepted.Status != "accepted" {
+		t.Errorf("expected accepted status, got %s", accepted.Status)
 	}
 }

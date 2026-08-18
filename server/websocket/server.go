@@ -6,8 +6,10 @@ import (
 	"net/http"
 
 	"github.com/coder/websocket"
+	"github.com/google/uuid"
 
 	"server/auth"
+	"server/models"
 	"server/protocol"
 	"server/repository"
 )
@@ -51,7 +53,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.sendPresenceSnapshot(client)
 	s.broadcastPresence(userID, "online")
 	defer func() {
-		s.registry.Unregister(userID)
+		s.registry.UnregisterIfCurrent(userID, client)
 		s.broadcastPresence(userID, "offline")
 		client.Close()
 	}()
@@ -85,6 +87,39 @@ func (s *Server) deliverPendingMessages(ctx context.Context, client *Client) {
 			}
 		}
 		_ = s.repos.SenderKeys.DeleteDelivered()
+	}
+}
+
+func (s *Server) SendToUser(userID string, msg []byte) {
+	if client, ok := s.registry.Get(userID); ok {
+		client.Send(msg)
+	}
+}
+
+// BroadcastToGroup sends msg to every member of the group. Online members
+// receive it immediately; offline members have it queued in PendingMessages.
+func (s *Server) BroadcastToGroup(groupID string, msg []byte) {
+	members, err := s.repos.Groups.ListMembers(groupID)
+	if err != nil {
+		s.logger.Error("failed to list members for group broadcast",
+			"group", groupID, "error", err)
+		return
+	}
+	for _, member := range members {
+		if client, ok := s.registry.Get(member.UserID); ok {
+			client.Send(msg)
+		} else {
+			p := &models.PendingMessage{
+				ID:          uuid.New().String(),
+				RecipientID: member.UserID,
+				Ciphertext:  msg,
+				Delivered:   false,
+			}
+			if err := s.repos.Messages.Insert(p); err != nil {
+				s.logger.Error("failed to queue offline group broadcast",
+					"group", groupID, "recipient", member.UserID, "error", err)
+			}
+		}
 	}
 }
 

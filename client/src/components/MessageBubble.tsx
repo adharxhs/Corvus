@@ -1,8 +1,11 @@
 import type { ChatMessage } from "../types/chat";
 import { formatMessageTime } from "../utils/format";
+import { AppAvatar } from "./AppAvatar";
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  isGroup?: boolean;
+  senderName?: string;
 }
 
 function StatusIcon({ status }: { status?: "pending" | "sent" }) {
@@ -21,16 +24,25 @@ function StatusIcon({ status }: { status?: "pending" | "sent" }) {
   );
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, isGroup, senderName }: MessageBubbleProps) {
   return (
     <div className={`message-row ${message.direction}`}>
+      {message.direction === "in" && message.senderId && (
+        <AppAvatar label={senderName || message.senderId} userId={message.senderId} size={28} />
+      )}
       <div className="message-bubble">
+        {isGroup && message.direction === "in" && senderName && (
+          <span className="message-sender">{senderName}</span>
+        )}
         <p>{message.content}</p>
         <time>
           {formatMessageTime(message.timestamp)}
           {message.direction === "out" && <StatusIcon status={message.status} />}
         </time>
       </div>
+      {message.direction === "out" && message.senderId && (
+        <AppAvatar label={senderName || message.senderId} userId={message.senderId} size={28} />
+      )}
     </div>
   );
 }

@@ -1,67 +1,70 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { validateProfilePicture } from "../utils/validators";
-import { ensureProfileKey, encryptProfilePicture } from "../services/tauri";
-import { uploadProfilePicture } from "../services/profilePictures";
-import { useWebSocket } from "../contexts/WebSocketContext";
+import { compressImage, uploadProfilePicture, getProfilePicture } from "../services/profilePictures";
+import { cacheProfilePicture } from "../services/profilePictureCache";
 import { useAuth } from "../contexts/AuthContext";
+
+interface Feedback {
+  text: string;
+  error: boolean;
+}
 
 export function ProfilePicturePicker() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const { service } = useWebSocket();
   const { user } = useAuth();
   const [version, setVersion] = useState(1);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [loadingVersion, setLoadingVersion] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    setLoadingVersion(true);
+    getProfilePicture(user.id)
+      .then((pic) => {
+        if (active) setVersion(pic.version + 1);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setLoadingVersion(false);
+      });
+    return () => { active = false; };
+  }, [user]);
 
   async function handleChange() {
     const file = inputRef.current?.files?.[0];
-    if (!file || !user) {
-      return;
-    }
+    if (!file || !user) return;
 
     const validationError = validateProfilePicture(file);
     if (validationError) {
-      setMessage(validationError);
+      setFeedback({ text: validationError, error: true });
+      if (inputRef.current) inputRef.current.value = "";
       return;
     }
 
     setBusy(true);
-    setMessage(null);
-
+    setFeedback(null);
     try {
-      await ensureProfileKey();
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const encrypted = await encryptProfilePicture(bytes);
-      await uploadProfilePicture({
-        ciphertext: encrypted.ciphertext,
-        nonce: encrypted.nonce,
-        version,
-      });
-      service.send("profile_picture_updated", { version });
-      setMessage("Profile picture updated");
-      setVersion((prev) => prev + 1);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Upload failed");
+      const imageData = await compressImage(file, 400, 400, 0.8);
+      await uploadProfilePicture({ image_data: imageData, version });
+      cacheProfilePicture(user.id, imageData, version);
+      setFeedback({ text: "Profile picture updated", error: false });
+    } catch (err) {
+      setFeedback({ text: err instanceof Error ? err.message : "Upload failed", error: true });
     } finally {
       setBusy(false);
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
     }
   }
 
   return (
-    <section className="panel profile-picture">
+    <div className="profile-picture">
       <h2>Profile Picture</h2>
-      <p className="muted">Version: {version}</p>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        disabled={busy}
-        onChange={handleChange}
-      />
-      {message ? <p className="muted">{message}</p> : null}
-    </section>
+      <input ref={inputRef} type="file" accept="image/*" hidden onChange={handleChange} />
+      <button type="button" className="upload-button" disabled={busy || loadingVersion} onClick={() => inputRef.current?.click()}>
+        {busy ? "Uploading…" : "Choose & upload photo"}
+      </button>
+      {feedback && <p className={feedback.error ? "error-text" : "success-text"}>{feedback.text}</p>}
+    </div>
   );
 }

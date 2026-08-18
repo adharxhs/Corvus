@@ -1,69 +1,35 @@
-import { useRef, useState } from "react";
-import { validateProfilePicture } from "../utils/validators";
-import { ensureProfileKey, encryptProfilePicture } from "../services/tauri";
-import { uploadGroupProfilePicture } from "../services/groups";
-import { useWebSocket } from "../contexts/WebSocketContext";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { getGroupProfilePicture } from "../services/groups";
+import { GroupAvatar } from "./GroupAvatar";
 
 interface GroupProfilePicturePickerProps {
   groupId: string;
+  pictureVersion?: number;
 }
 
-export function GroupProfilePicturePicker({ groupId }: GroupProfilePicturePickerProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const { service } = useWebSocket();
-  const [version, setVersion] = useState(1);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+export function GroupProfilePicturePicker({ groupId, pictureVersion }: GroupProfilePicturePickerProps) {
+  const navigate = useNavigate();
+  const [hasPicture, setHasPicture] = useState(false);
 
-  async function handleChange() {
-    const file = inputRef.current?.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    const validationError = validateProfilePicture(file);
-    if (validationError) {
-      setMessage(validationError);
-      return;
-    }
-
-    setBusy(true);
-    setMessage(null);
-
-    try {
-      await ensureProfileKey();
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const encrypted = await encryptProfilePicture(bytes);
-      await uploadGroupProfilePicture(groupId, {
-        ciphertext: encrypted.ciphertext,
-        nonce: encrypted.nonce,
-        version,
-      });
-      service.send("group_profile_picture_updated", { group_id: groupId, version });
-      setMessage("Group picture updated");
-      setVersion((prev) => prev + 1);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Upload failed");
-    } finally {
-      setBusy(false);
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
-    }
-  }
+  useEffect(() => {
+    let active = true;
+    getGroupProfilePicture(groupId)
+      .then(() => { if (active) setHasPicture(true); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [groupId, pictureVersion]);
 
   return (
-    <section className="panel profile-picture">
+    <div className="profile-picture">
       <h2>Group Picture</h2>
-      <p className="muted">Version: {version}</p>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        disabled={busy}
-        onChange={handleChange}
-      />
-      {message ? <p className="muted">{message}</p> : null}
-    </section>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <GroupAvatar name="Group" groupId={groupId} size={64} pictureVersion={pictureVersion} />
+        {hasPicture ? <span className="muted">Picture set</span> : <span className="muted">No picture yet</span>}
+      </div>
+      <button type="button" className="primary-button" onClick={() => navigate(`/profile-picture/group/${groupId}`)}>
+        {hasPicture ? "Change Picture" : "Set Picture"}
+      </button>
+    </div>
   );
 }

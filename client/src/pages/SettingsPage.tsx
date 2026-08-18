@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { ThemePicker } from "../components/ThemePicker";
-import { ProfilePicturePicker } from "../components/ProfilePicturePicker";
 import { changePasswordRequest } from "../services/auth";
 
 export function SettingsPage() {
@@ -15,7 +14,8 @@ export function SettingsPage() {
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  async function handleChangePassword() {
+  async function handleChangePassword(event: FormEvent) {
+    event.preventDefault();
     setPasswordError(null);
     setPasswordSuccess(false);
     if (!currentPassword || !newPassword) {
@@ -57,40 +57,47 @@ export function SettingsPage() {
         <p className="muted">User ID: {user?.id}</p>
       </section>
       <section className="settings-section">
-        <ProfilePicturePicker />
+        <h3>Profile Picture</h3>
+        <button type="button" className="primary-button" onClick={() => navigate("/profile-picture")}>
+          Edit Profile Picture
+        </button>
       </section>
       <section className="settings-section">
         <h3>Change Password</h3>
-        <div className="settings-form">
-          <input
-            type="password"
-            placeholder="Current password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="New password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="Confirm new password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
+        <form className="settings-form" onSubmit={handleChangePassword}>
+          <label>
+            Current Password
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </label>
+          <label>
+            New Password
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+          <label>
+            Confirm New Password
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
           {passwordError && <p className="error-text">{passwordError}</p>}
-          {passwordSuccess && <p className="muted" style={{ color: "#38E078" }}>Password updated successfully.</p>}
-          <button
-            type="button"
-            className="primary-button"
-            disabled={isChangingPassword}
-            onClick={() => void handleChangePassword()}
-          >
+          {passwordSuccess && <p className="success-text">Password updated successfully.</p>}
+          <button type="submit" className="primary-button" disabled={isChangingPassword}>
             {isChangingPassword ? "Updating..." : "Update Password"}
           </button>
-        </div>
+        </form>
       </section>
       <section className="settings-section">
         <ThemePicker />

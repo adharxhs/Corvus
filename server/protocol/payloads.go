@@ -91,3 +91,21 @@ type PresencePayload struct {
 	UserID string `json:"user_id"`
 	Status string `json:"status"` // "online" | "offline"
 }
+
+// ChatRequestUpdatedPayload is a server→client notification sent when a chat
+// request is created, accepted, or rejected. The recipient uses it to refresh
+// their pending requests list in real time.
+type ChatRequestUpdatedPayload struct {
+	RequesterID string `json:"requester_id"`
+	RecipientID string `json:"recipient_id"`
+	Status      string `json:"status"` // "pending" | "accepted" | "rejected"
+}
+
+// MemberJoinedPayload is broadcast to group members when a new member accepts
+// an invite and joins the group.
+type MemberJoinedPayload struct {
+	GroupID   string `json:"group_id"`
+	UserID    string `json:"user_id"`
+	Username  string `json:"username"`
+	JoinedAt  int64  `json:"joined_at"`
+}

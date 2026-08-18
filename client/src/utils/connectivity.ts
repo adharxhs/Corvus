@@ -4,9 +4,7 @@ import { probeServer } from "../services/api";
 export type Reachability = "checking" | "online" | "offline";
 
 export function useServerReachable(enabled = true): { reachable: Reachability; retry: () => void } {
-  const [reachable, setReachable] = useState<Reachability>(() =>
-    enabled && typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "checking",
-  );
+  const [reachable, setReachable] = useState<Reachability>("checking");
 
   const probe = useCallback(() => {
     if (!enabled) {
@@ -29,16 +27,11 @@ export function useServerReachable(enabled = true): { reachable: Reachability; r
         if (active) setReachable(ok ? "online" : "offline");
       });
     };
-    const onOffline = () => {
-      if (active) setReachable("offline");
-    };
     run();
     window.addEventListener("online", run);
-    window.addEventListener("offline", onOffline);
     return () => {
       active = false;
       window.removeEventListener("online", run);
-      window.removeEventListener("offline", onOffline);
     };
   }, [enabled]);
 

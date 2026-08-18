@@ -17,14 +17,13 @@ type groupProfilePictureRepo struct {
 
 func (r *groupProfilePictureRepo) Upsert(pic *models.GroupProfilePicture) error {
 	_, err := r.db.Exec(
-		`INSERT INTO group_profile_pictures (group_id, ciphertext, nonce, version, updated_at)
-		 VALUES (?, ?, ?, ?, ?)
+		`INSERT INTO group_profile_pictures (group_id, image_data, version, updated_at)
+		 VALUES (?, ?, ?, ?)
 		 ON CONFLICT(group_id) DO UPDATE SET
-			ciphertext = excluded.ciphertext,
-			nonce = excluded.nonce,
+			image_data = excluded.image_data,
 			version = excluded.version,
 			updated_at = excluded.updated_at`,
-		pic.GroupID, pic.Ciphertext, pic.Nonce, pic.Version, pic.UpdatedAt,
+		pic.GroupID, pic.ImageData, pic.Version, pic.UpdatedAt,
 	)
 	return err
 }
@@ -32,10 +31,10 @@ func (r *groupProfilePictureRepo) Upsert(pic *models.GroupProfilePicture) error 
 func (r *groupProfilePictureRepo) Get(groupID string) (*models.GroupProfilePicture, error) {
 	var pic models.GroupProfilePicture
 	err := r.db.QueryRow(
-		`SELECT group_id, ciphertext, nonce, version, updated_at
+		`SELECT group_id, image_data, version, updated_at
 		 FROM group_profile_pictures WHERE group_id = ?`,
 		groupID,
-	).Scan(&pic.GroupID, &pic.Ciphertext, &pic.Nonce, &pic.Version, &pic.UpdatedAt)
+	).Scan(&pic.GroupID, &pic.ImageData, &pic.Version, &pic.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

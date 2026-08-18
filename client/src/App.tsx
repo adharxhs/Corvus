@@ -5,6 +5,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
 import { ChatProvider } from "./contexts/ChatContext";
+import { useVisualViewport } from "./hooks/useVisualViewport";
 import { router } from "./routes";
 
 interface ErrorBoundaryProps {
@@ -54,6 +55,8 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 export function App() {
+  useVisualViewport();
+
   useEffect(() => {
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
       console.warn("Unhandled promise rejection:", event.reason);

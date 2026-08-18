@@ -22,12 +22,12 @@ Corvus is an end-to-end encrypted messaging platform with three independent subs
 
 - **Framework**: Tauri 2 (Rust shell + system WebView)
 - **Frontend**: React 19, TypeScript, Vite 7, React Router
-- **Rust core**: `src-tauri/src/lib.rs` exposes Tauri commands for profile-picture encrypt/decrypt; the `crypto/` crate is the shared cryptographic library
+- **Rust core**: `src-tauri/src/lib.rs` registers 15 Tauri IPC commands and manages `CryptoManager` state; `crypto_manager.rs` wraps the `crypto/` crate's types (identity, sessions, sender keys); `commands.rs` exposes encrypt/decrypt/session operations to the frontend
 - **Key directories**:
-  - `src/services/` — HTTP client, auth, groups, relationships, profile pictures, prekeys
+  - `src/services/` — HTTP client, auth, groups, relationships, profile pictures, prekeys, **crypto** (Tauri invoke wrappers)
   - `src/websocket/` — WebSocket service with exponential-backoff reconnection
   - `src/protocol/` — envelope encoding, validation, parser (wire format `{version, type, payload}`)
-  - `src/contexts/` — React context providers (auth, chat, websocket, theme, app)
+  - `src/contexts/` — React context providers (auth, chat, websocket, theme, app); **ChatContext** handles encryption/decryption of messages
   - `src/pages/` — route-level views (login, register, chats, contacts, groups, settings)
 - **Build-time configuration**: `VITE_SERVER_URL` env var sets the API/WS base URL at build time (used in `src/utils/constants.ts`). Falls back to `http://localhost:8080`.
 
@@ -74,13 +74,13 @@ Client→server types: `direct_message`, `group_message`, `sender_key_distributi
 
 ## Encryption model
 
-| Layer | What it encrypts | Where it runs |
-|---|---|---|
-| X3DH + Double Ratchet | Direct messages, key material | `crypto/` crate (client-side Rust) |
-| Sender Keys | Group messages | `crypto/` crate (client-side Rust) |
-| Profile key (AES-256-GCM) | Profile pictures | `src-tauri/src/profile_key.rs` |
+| Layer | What it encrypts | Where it runs | How it's invoked |
+|---|---|---|---|
+| X3DH + Double Ratchet | Direct messages | `crypto/` crate → `crypto_manager.rs` → `commands.rs` | `encrypt_message` / `decrypt_message` Tauri commands |
+| Sender Keys | Group messages | `crypto/` crate → `crypto_manager.rs` → `commands.rs` | `encrypt_group_message` / `decrypt_group_message` Tauri commands |
+| Profile key (AES-256-GCM) | Profile pictures | `src-tauri/src/profile_key.rs` | Tauri commands |
 
-The server stores only ciphertext. Private keys never leave the client device.
+The server stores only ciphertext. Private keys never leave the client device. On registration/login, the client generates an identity keypair + prekey bundle and uploads the public half to the server. When starting a chat, X3DH establishes a shared secret, then Double Ratchet handles ongoing message encryption. Group chats use Sender Keys distributed via the existing `sender_key_distribution` message type.
 
 ## Database
 

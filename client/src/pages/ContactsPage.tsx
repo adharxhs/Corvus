@@ -12,7 +12,7 @@ import { useAuth } from "../contexts/AuthContext";
 
 export function ContactsPage() {
   const { user } = useAuth();
-  const { contacts, conversations, pendingIncoming, acceptRequest, rejectRequest, startNewChat, selectConversation } = useChat();
+  const { contacts, conversations, pendingIncoming, acceptRequest, rejectRequest, startNewChat, selectConversation, usernameFor } = useChat();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [newChatOpen, setNewChatOpen] = useState(false);
@@ -34,7 +34,7 @@ export function ContactsPage() {
             const otherId = request.recipient_id === user?.id ? request.requester_id : request.recipient_id;
             return (
               <div key={request.requester_id} className="pending-row">
-                <span>{otherId}</span>
+                <span>{usernameFor(otherId)}</span>
                 <span className="button-group">
                   <button type="button" onClick={() => void acceptRequest(request.requester_id)}>Accept</button>
                   <button type="button" className="secondary" onClick={() => void rejectRequest(request.requester_id)}>Reject</button>

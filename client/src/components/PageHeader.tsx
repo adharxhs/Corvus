@@ -3,10 +3,11 @@ import type { ReactNode } from "react";
 interface PageHeaderProps {
   onBack?: () => void;
   title?: string;
+  beforeTitle?: ReactNode;
   children?: ReactNode;
 }
 
-export function PageHeader({ onBack, title, children }: PageHeaderProps) {
+export function PageHeader({ onBack, title, beforeTitle, children }: PageHeaderProps) {
   return (
     <header className="app-header">
       {onBack ? (
@@ -16,6 +17,7 @@ export function PageHeader({ onBack, title, children }: PageHeaderProps) {
           </svg>
         </button>
       ) : null}
+      {beforeTitle}
       <span className="header-title">{title}</span>
       <span className="spacer" />
       {children}

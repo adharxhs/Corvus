@@ -1,6 +1,6 @@
 # Android Build & Packaging
 
-Corvus builds as a native Android APK via Tauri 2. The APK includes a WebView UI (React) and a Rust native library (profile-key encryption). The server URL is baked in at build time.
+Corvus builds as a native Android APK via Tauri 2. The APK includes a WebView UI (React) and a Rust native library containing the full E2EE crypto stack (X3DH, Double Ratchet, Sender Keys). The server URL is baked in at build time.
 
 ## Prerequisites
 
@@ -76,6 +76,8 @@ Or transfer the APK file to the phone and open it in a file manager.
 | Minification | disabled | enabled |
 
 The large debug APK is normal — it contains full Rust debug symbols for all four CPU architectures. The release APK strips these, giving the ~36 MB universal size.
+
+**Note**: The release profile uses `panic = "unwind"` (required by the crypto crate's `catch_unwind` in `DoubleRatchetSession::decrypt`). Do not switch to `panic = "abort"` or tampered ciphertexts will panic the app instead of being rejected gracefully.
 
 ## Machine quirks
 

@@ -1,50 +1,29 @@
-mod profile_key;
+mod commands;
+mod crypto_manager;
 
-use profile_key::{AppState, ProfileKeyStore};
-use std::sync::Mutex;
-use tauri::Manager;
-
-#[tauri::command]
-fn ensure_profile_key(state: tauri::State<AppState>) -> bool {
-    state.profile_key.lock().expect("profile key mutex poisoned").is_ready()
-}
-
-#[tauri::command]
-fn encrypt_profile_picture(
-    state: tauri::State<AppState>,
-    bytes: Vec<u8>,
-) -> Result<profile_key::EncryptResult, String> {
-    let store = state.profile_key.lock().expect("profile key mutex poisoned");
-    profile_key::encrypt(&store, &bytes)
-}
-
-#[tauri::command]
-fn decrypt_profile_picture(
-    state: tauri::State<AppState>,
-    ciphertext_b64: String,
-    nonce_b64: String,
-) -> Result<Vec<u8>, String> {
-    let store = state.profile_key.lock().expect("profile key mutex poisoned");
-    profile_key::decrypt(&store, &ciphertext_b64, &nonce_b64)
-}
+use crypto_manager::CryptoManager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
-            let dir = app.path().app_data_dir()?;
-            std::fs::create_dir_all(&dir)?;
-            let store = ProfileKeyStore::load_or_create(&dir.join("profile_key.bin"));
-            app.manage(AppState {
-                profile_key: Mutex::new(store),
-            });
-            Ok(())
-        })
+        .manage(CryptoManager::new())
         .invoke_handler(tauri::generate_handler![
-            ensure_profile_key,
-            encrypt_profile_picture,
-            decrypt_profile_picture
+            commands::init_crypto,
+            commands::has_identity,
+            commands::get_identity_key,
+            commands::build_prekey_bundle,
+            commands::start_session,
+            commands::accept_session,
+            commands::complete_alice_session,
+            commands::encrypt_message,
+            commands::decrypt_message,
+            commands::create_group_sender_key,
+            commands::process_sender_key_distribution,
+            commands::encrypt_group_message,
+            commands::decrypt_group_message,
+            commands::save_crypto_state,
+            commands::load_crypto_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

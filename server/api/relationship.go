@@ -1,20 +1,58 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"server/auth"
 	"server/models"
+	"server/protocol"
 	"server/services"
 )
 
-type RelationshipHandler struct {
-	relationships *services.RelationshipService
+// Notifier is used by HTTP handlers to push real-time WebSocket notifications
+// to connected clients.
+type Notifier interface {
+	SendToUser(userID string, msg []byte)
+	BroadcastToGroup(groupID string, msg []byte)
 }
 
-func NewRelationshipHandler(relationships *services.RelationshipService) *RelationshipHandler {
-	return &RelationshipHandler{relationships: relationships}
+type RelationshipHandler struct {
+	relationships *services.RelationshipService
+	notifier      Notifier
+}
+
+func NewRelationshipHandler(relationships *services.RelationshipService, notifier Notifier) *RelationshipHandler {
+	return &RelationshipHandler{relationships: relationships, notifier: notifier}
+}
+
+func (h *RelationshipHandler) notifyChatRequest(targetID, requesterID, recipientID, status string) {
+	if h.notifier == nil || targetID == "" {
+		return
+	}
+	payload := protocol.ChatRequestUpdatedPayload{
+		RequesterID: requesterID,
+		RecipientID: recipientID,
+		Status:      status,
+	}
+	raw, _ := json.Marshal(payload)
+	env := protocol.Envelope{
+		Version: protocol.CurrentVersion,
+		Type:    protocol.TypeChatRequestUpdated,
+	}
+	env.Payload = raw
+	data, _ := json.Marshal(env)
+	h.notifier.SendToUser(targetID, data)
+}
+
+func (h *RelationshipHandler) notifyRequestParties(requesterID, recipientID, status string) {
+	// The recipient must see newly-pending requests; on accept/reject both
+	// parties should be refreshed in real time.
+	h.notifyChatRequest(recipientID, requesterID, recipientID, status)
+	if status == string(models.RelationshipAccepted) || status == string(models.RelationshipRejected) {
+		h.notifyChatRequest(requesterID, requesterID, recipientID, status)
+	}
 }
 
 func (h *RelationshipHandler) Send(w http.ResponseWriter, r *http.Request) {
@@ -53,6 +91,7 @@ func (h *RelationshipHandler) Send(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, rel)
+	h.notifyRequestParties(userID, req.RecipientID, "pending")
 }
 
 func (h *RelationshipHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -103,4 +142,5 @@ func (h *RelationshipHandler) respond(w http.ResponseWriter, r *http.Request, st
 		return
 	}
 	writeJSON(w, http.StatusOK, rel)
+	h.notifyRequestParties(requesterID, userID, string(status))
 }

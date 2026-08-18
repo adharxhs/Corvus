@@ -7,6 +7,7 @@ import { ChatScreen } from "./pages/ChatScreen";
 import { ContactsPage } from "./pages/ContactsPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { ProfilePictureEditorPage } from "./pages/ProfilePictureEditorPage";
 import { OfflinePage } from "./pages/OfflinePage";
 import { useAuth } from "./contexts/AuthContext";
 import { useServerReachable } from "./utils/connectivity";
@@ -28,20 +29,19 @@ function OfflineGuard({ children }: { children: React.ReactNode }) {
 
   if (status === "authenticated") return <Navigate to="/chats" replace />;
 
-  if (reachable === "checking") {
-    return (
-      <main className="auth-page">
-        <section className="auth-card">
-          <h1>Corvus</h1>
-          <p className="muted">Connecting…</p>
-        </section>
-      </main>
-    );
-  }
-
-  if (reachable === "offline") return <OfflinePage onRetry={retry} />;
-
-  return children;
+  return (
+    <>
+      {reachable === "offline" && (
+        <div className="offline-banner">
+          Server unreachable — you can still try to sign in.
+          <button type="button" onClick={retry} style={{ marginLeft: 8, background: "none", border: "1px solid currentColor", borderRadius: 6, padding: "2px 8px", color: "inherit", cursor: "pointer" }}>
+            Retry
+          </button>
+        </div>
+      )}
+      {children}
+    </>
+  );
 }
 
 export const router = createHashRouter([
@@ -61,6 +61,8 @@ export const router = createHashRouter([
       { path: "/contacts", element: <ContactsPage /> },
       { path: "/groups", element: <GroupsPage /> },
       { path: "/settings", element: <SettingsPage /> },
+      { path: "/profile-picture", element: <ProfilePictureEditorPage /> },
+      { path: "/profile-picture/group/:groupId", element: <ProfilePictureEditorPage /> },
     ],
   },
 ]);

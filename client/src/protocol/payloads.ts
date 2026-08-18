@@ -7,6 +7,18 @@ export interface GroupProfilePictureUpdatedPayload {
   version: number;
 }
 
+export interface ChatRequestUpdatedPayload {
+  requester_id: string;
+  recipient_id: string;
+  status: "pending" | "accepted" | "rejected";
+}
+
+export interface MemberJoinedPayload {
+  group_id: string;
+  user_id: string;
+  username: string;
+}
+
 export type ClientPayload = DirectMessage | GroupMessage | SenderKeyDistribution | ProtocolEnvelope<string>;
 
 export type ServerPayload =
@@ -16,6 +28,8 @@ export type ServerPayload =
   | PresenceSnapshotPayload
   | PresencePayload
   | GroupProfilePictureUpdatedPayload
+  | ChatRequestUpdatedPayload
+  | MemberJoinedPayload
   | ProtocolErrorPayload;
 
 export type ServerEnvelope = ProtocolEnvelope<ServerPayload>;

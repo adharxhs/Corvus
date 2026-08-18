@@ -11,9 +11,11 @@ import (
 type GroupRepository interface {
 	Create(group *models.Group) error
 	GetByID(id string) (*models.Group, error)
+	Rename(id, name string) error
 	AddMember(member *models.GroupMember) error
 	RemoveMember(groupID, userID string) error
 	ListMembers(groupID string) ([]models.GroupMember, error)
+	ListByUser(userID string) ([]models.Group, error)
 	IsMember(groupID, userID string) (bool, error)
 }
 
@@ -23,8 +25,8 @@ type groupRepo struct {
 
 func (r *groupRepo) Create(g *models.Group) error {
 	_, err := r.db.Exec(
-		`INSERT INTO groups (id, created_at) VALUES (?, ?)`,
-		g.ID, g.CreatedAt,
+		`INSERT INTO groups (id, name, created_at) VALUES (?, ?, ?)`,
+		g.ID, g.Name, g.CreatedAt,
 	)
 	return err
 }
@@ -32,8 +34,8 @@ func (r *groupRepo) Create(g *models.Group) error {
 func (r *groupRepo) GetByID(id string) (*models.Group, error) {
 	var g models.Group
 	err := r.db.QueryRow(
-		`SELECT id, created_at FROM groups WHERE id = ?`, id,
-	).Scan(&g.ID, &g.CreatedAt)
+		`SELECT id, name, created_at FROM groups WHERE id = ?`, id,
+	).Scan(&g.ID, &g.Name, &g.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, sql.ErrNoRows
@@ -41,6 +43,13 @@ func (r *groupRepo) GetByID(id string) (*models.Group, error) {
 		return nil, err
 	}
 	return &g, nil
+}
+
+func (r *groupRepo) Rename(id, name string) error {
+	_, err := r.db.Exec(
+		`UPDATE groups SET name = ? WHERE id = ?`, name, id,
+	)
+	return err
 }
 
 func (r *groupRepo) AddMember(m *models.GroupMember) error {
@@ -87,6 +96,31 @@ func (r *groupRepo) ListMembers(groupID string) ([]models.GroupMember, error) {
 		members = append(members, m)
 	}
 	return members, rows.Err()
+}
+
+func (r *groupRepo) ListByUser(userID string) ([]models.Group, error) {
+	rows, err := r.db.Query(
+		`SELECT g.id, g.name, g.created_at
+		 FROM groups g
+		 INNER JOIN group_members gm ON g.id = gm.group_id
+		 WHERE gm.user_id = ?
+		 ORDER BY g.name`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var groups []models.Group
+	for rows.Next() {
+		var g models.Group
+		if err := rows.Scan(&g.ID, &g.Name, &g.CreatedAt); err != nil {
+			return nil, err
+		}
+		groups = append(groups, g)
+	}
+	return groups, rows.Err()
 }
 
 func (r *groupRepo) IsMember(groupID, userID string) (bool, error) {

@@ -14,15 +14,17 @@ type Router struct {
 	logger   *slog.Logger
 	auth     *auth.Service
 	services *services.Services
+	notifier Notifier
 }
 
 // NewRouter creates and initializes the main HTTP router.
-func NewRouter(logger *slog.Logger, authSvc *auth.Service, svcs *services.Services, wsHandler http.Handler, corsOrigin string) http.Handler {
+func NewRouter(logger *slog.Logger, authSvc *auth.Service, svcs *services.Services, wsHandler http.Handler, corsOrigin string, notifier Notifier) http.Handler {
 	r := &Router{
 		mux:      http.NewServeMux(),
 		logger:   logger,
 		auth:     authSvc,
 		services: svcs,
+		notifier: notifier,
 	}
 
 	r.mux.HandleFunc("GET /", r.handleHealth)
@@ -44,19 +46,23 @@ func NewRouter(logger *slog.Logger, authSvc *auth.Service, svcs *services.Servic
 	r.mux.Handle("POST /user/password", requireAuth(http.HandlerFunc(authHandler.ChangePassword)))
 
 	// Chat requests (pending → accepted | rejected)
-	relationshipHandler := NewRelationshipHandler(svcs.Relationships)
+	relationshipHandler := NewRelationshipHandler(svcs.Relationships, r.notifier)
 	r.mux.Handle("POST /chat-request", requireAuth(http.HandlerFunc(relationshipHandler.Send)))
 	r.mux.Handle("GET /chat-requests", requireAuth(http.HandlerFunc(relationshipHandler.List)))
 	r.mux.Handle("POST /chat-request/{requester_id}/accept", requireAuth(http.HandlerFunc(relationshipHandler.Accept)))
 	r.mux.Handle("POST /chat-request/{requester_id}/reject", requireAuth(http.HandlerFunc(relationshipHandler.Reject)))
 
-	// Groups (create, invite, accept, leave)
-	groupHandler := NewGroupHandler(svcs.Groups)
+	// Groups (create, get, rename, invite, accept, reject, leave)
+	groupHandler := NewGroupHandler(svcs.Groups, r.notifier)
+	r.mux.Handle("GET /groups/mine", requireAuth(http.HandlerFunc(groupHandler.ListByUser)))
 	r.mux.Handle("POST /groups", requireAuth(http.HandlerFunc(groupHandler.Create)))
+	r.mux.Handle("GET /groups/{group_id}", requireAuth(http.HandlerFunc(groupHandler.Get)))
+	r.mux.Handle("PUT /groups/{group_id}/name", requireAuth(http.HandlerFunc(groupHandler.Rename)))
 	r.mux.Handle("GET /groups/invites", requireAuth(http.HandlerFunc(groupHandler.ListInvites)))
 	r.mux.Handle("GET /groups/{group_id}/members", requireAuth(http.HandlerFunc(groupHandler.ListMembers)))
 	r.mux.Handle("POST /groups/{group_id}/invite", requireAuth(http.HandlerFunc(groupHandler.Invite)))
 	r.mux.Handle("POST /groups/{group_id}/invite/accept", requireAuth(http.HandlerFunc(groupHandler.AcceptInvite)))
+	r.mux.Handle("POST /groups/{group_id}/invite/reject", requireAuth(http.HandlerFunc(groupHandler.RejectInvite)))
 	r.mux.Handle("DELETE /groups/{group_id}/member", requireAuth(http.HandlerFunc(groupHandler.Leave)))
 	r.mux.Handle("POST /groups/{group_id}/profile-picture", requireAuth(http.HandlerFunc(groupHandler.UploadPicture)))
 	r.mux.Handle("GET /groups/{group_id}/profile-picture", requireAuth(http.HandlerFunc(groupHandler.GetPicture)))

@@ -5,24 +5,34 @@ import { useWebSocket } from "../contexts/WebSocketContext";
 import { TitleBar, BottomNav } from "../components/NavHeader";
 import { SearchBar } from "../components/SearchBar";
 import { ConversationListItem } from "../components/ConversationListItem";
+import { ChatRequestPanel } from "../components/ChatRequestPanel";
+import { FilterTabs } from "../components/FilterTabs";
 import { Fab } from "../components/Fab";
 import { BottomSheet } from "../components/BottomSheet";
 import { ContactSearchResults } from "../components/ContactSearchResults";
 import { EmptyState } from "../components/EmptyState";
 
+type ChatTab = "all" | "unread" | "requests";
+
 export function ChatsPage() {
   const { presence } = useWebSocket();
-  const { conversations, contacts, loading, error, offline, selectConversation, startNewChat } = useChat();
+  const { conversations, contacts, pendingIncoming, loading, error, offline, selectConversation, startNewChat, acceptRequest, rejectRequest, usernameFor } = useChat();
   const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<ChatTab>("all");
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [sheetQuery, setSheetQuery] = useState("");
   const navigate = useNavigate();
 
-  const filtered = query
-    ? conversations.filter((c) => c.title.toLowerCase().includes(query.toLowerCase()) || c.peerId.toLowerCase().includes(query.toLowerCase()))
-    : conversations;
+  const dmConversations = conversations.filter((c) => c.kind === "dm");
+  const unreadCount = dmConversations.reduce((sum, c) => sum + c.unreadCount, 0);
+
+  const searched = query
+    ? dmConversations.filter((c) => c.title.toLowerCase().includes(query.toLowerCase()) || c.peerId.toLowerCase().includes(query.toLowerCase()))
+    : dmConversations;
+
+  const visibleConversations = tab === "unread" ? searched.filter((c) => c.unreadCount > 0) : searched;
 
   const contactsSearch = sheetQuery
     ? contacts.filter((c) => c.username?.toLowerCase().includes(sheetQuery.toLowerCase()) || c.id.toLowerCase().includes(sheetQuery.toLowerCase()))
@@ -52,27 +62,45 @@ export function ChatsPage() {
       <TitleBar />
       <div className="chats-search-wrapper">
         <SearchBar query={query} onChange={setQuery} placeholder="Search chats" />
+        <FilterTabs
+          active={tab}
+          onChange={setTab}
+          options={[
+            { key: "all", label: "All" },
+            { key: "unread", label: "Unread", count: unreadCount },
+            { key: "requests", label: "Requests", count: pendingIncoming.length },
+          ]}
+        />
       </div>
       {offline && <div className="offline-banner">Offline — showing saved chats</div>}
       {error && !loading && !offline && <p className="error-text page-error">{error}</p>}
       {loading && <p className="muted page-hint">Loading chats…</p>}
-      {filtered.length === 0 && !loading && (
-        <EmptyState title="No chats yet" body="Tap the pencil to start a new conversation." />
-      )}
-      {filtered.length > 0 && (
-        <div className="conversation-list">
-          {filtered.map((conversation) => (
-            <ConversationListItem
-              key={conversation.peerId}
-              conversation={conversation}
-              presence={conversation.kind === "dm" ? presence.get(conversation.peerId) : undefined}
-              onClick={() => {
-                selectConversation(conversation.peerId);
-                navigate(`/chat/${conversation.kind}/${conversation.peerId}`);
-              }}
+      {tab === "requests" ? (
+        <ChatRequestPanel requests={pendingIncoming} onAccept={acceptRequest} onReject={rejectRequest} usernameFor={usernameFor} />
+      ) : (
+        <>
+          {visibleConversations.length === 0 && !loading && (
+            <EmptyState
+              title={tab === "unread" ? "No unread chats" : "No chats yet"}
+              body={tab === "unread" ? "You're all caught up." : "Tap the pencil to start a new conversation."}
             />
-          ))}
-        </div>
+          )}
+          {visibleConversations.length > 0 && (
+            <div className="conversation-list">
+              {visibleConversations.map((conversation) => (
+                <ConversationListItem
+                  key={conversation.peerId}
+                  conversation={conversation}
+                  presence={conversation.kind === "dm" ? presence.get(conversation.peerId) : undefined}
+                  onClick={() => {
+                    selectConversation(conversation.peerId);
+                    navigate(`/chat/${conversation.kind}/${conversation.peerId}`);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
       <Fab label="New chat" onClick={() => setNewChatOpen(true)} />
       <BottomSheet open={newChatOpen} title="New chat" onClose={() => { setNewChatOpen(false); setSheetQuery(""); setFormError(null); }}>

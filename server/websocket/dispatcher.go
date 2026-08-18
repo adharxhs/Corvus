@@ -247,9 +247,6 @@ func (d *Dispatcher) handleGroupProfilePictureUpdated(sender *Client, env *proto
 	}
 
 	for _, member := range members {
-		if member.UserID == sender.UserID {
-			continue
-		}
 		recipient, online := d.registry.Get(member.UserID)
 		if online {
 			recipient.Send(data)

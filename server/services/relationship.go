@@ -35,7 +35,10 @@ func NewRelationshipService(users repository.UserRepository, rels repository.Rel
 }
 
 // SendRequest initiates or re-arms a pending chat request from requester to
-// recipient. Rejects are silent; re-arming after rejection is cooldown-gated.
+// recipient. The call is idempotent: if an accepted or pending relationship
+// already exists (in either direction), the current state is returned rather
+// than an error. If the other user previously sent a pending request to us,
+// it is automatically accepted.
 func (s *RelationshipService) SendRequest(requesterID, recipientID string) (*models.RelationshipResponse, error) {
 	if requesterID == recipientID {
 		return nil, ErrInvalidInput("cannot send a chat request to yourself")
@@ -48,43 +51,68 @@ func (s *RelationshipService) SendRequest(requesterID, recipientID string) (*mod
 	}
 
 	now := time.Now().Unix()
+
+	// Check existing row in the same direction.
 	rel, err := s.rels.Get(requesterID, recipientID)
-	if err != nil {
-		if err != sql.ErrNoRows {
-			return nil, err
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	if rel != nil {
+		switch rel.Status {
+		case models.RelationshipAccepted:
+			return toRelationshipResponse(rel), nil
+		case models.RelationshipPending:
+			return toRelationshipResponse(rel), nil
+		case models.RelationshipRejected:
+			elapsed := time.Since(time.Unix(rel.UpdatedAt, 0))
+			if elapsed < s.cooldown {
+				return nil, ErrCooldownActive{RetryAfter: s.cooldown - elapsed}
+			}
+			if err := s.rels.UpdateStatus(requesterID, recipientID, models.RelationshipPending); err != nil {
+				return nil, err
+			}
+			rel.Status = models.RelationshipPending
+			rel.UpdatedAt = time.Now().Unix()
+			return toRelationshipResponse(rel), nil
+		default:
+			return nil, ErrInvalidInput("unknown relationship status")
 		}
-		rel = &models.Relationship{
-			RequesterID: requesterID,
-			RecipientID: recipientID,
-			Status:      models.RelationshipPending,
-			CreatedAt:   now,
-			UpdatedAt:   now,
-		}
-		if err := s.rels.Create(rel); err != nil {
-			return nil, err
-		}
-		return toRelationshipResponse(rel), nil
 	}
 
-	switch rel.Status {
-	case models.RelationshipAccepted:
-		return nil, ErrConflict("already connected")
-	case models.RelationshipPending:
-		return nil, ErrConflict("request already pending")
-	case models.RelationshipRejected:
-		elapsed := time.Since(time.Unix(rel.UpdatedAt, 0))
-		if elapsed < s.cooldown {
-			return nil, ErrCooldownActive{RetryAfter: s.cooldown - elapsed}
-		}
-		if err := s.rels.UpdateStatus(requesterID, recipientID, models.RelationshipPending); err != nil {
-			return nil, err
-		}
-		rel.Status = models.RelationshipPending
-		rel.UpdatedAt = time.Now().Unix()
-		return toRelationshipResponse(rel), nil
-	default:
-		return nil, ErrInvalidInput("unknown relationship status")
+	// No same-direction row — check reverse direction.
+	reverse, err := s.rels.Get(recipientID, requesterID)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
 	}
+	if reverse != nil {
+		switch reverse.Status {
+		case models.RelationshipAccepted:
+			return toRelationshipResponse(reverse), nil
+		case models.RelationshipPending:
+			// The other user requested us; accept it.
+			if err := s.rels.UpdateStatus(recipientID, requesterID, models.RelationshipAccepted); err != nil {
+				return nil, err
+			}
+			reverse.Status = models.RelationshipAccepted
+			reverse.UpdatedAt = time.Now().Unix()
+			return toRelationshipResponse(reverse), nil
+		case models.RelationshipRejected:
+			// The other user rejected us previously; fall through to create a fresh request.
+		}
+	}
+
+	// Create a new pending request.
+	rel = &models.Relationship{
+		RequesterID: requesterID,
+		RecipientID: recipientID,
+		Status:      models.RelationshipPending,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := s.rels.Create(rel); err != nil {
+		return nil, err
+	}
+	return toRelationshipResponse(rel), nil
 }
 
 // ListPending returns all incoming pending chat requests for the given user.

@@ -30,14 +30,18 @@ func (h *ProfilePictureHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ciphertext, err1 := base64.StdEncoding.DecodeString(req.Ciphertext)
-	nonce, err2 := base64.StdEncoding.DecodeString(req.Nonce)
-	if err1 != nil || err2 != nil {
+	if req.ImageData == "" {
+		writeError(w, http.StatusBadRequest, "image_data is required")
+		return
+	}
+
+	imageBytes, err := base64.StdEncoding.DecodeString(req.ImageData)
+	if err != nil {
 		writeError(w, http.StatusBadRequest, "malformed base64")
 		return
 	}
 
-	if err := h.pictures.Upload(userID, ciphertext, nonce, req.Version); err != nil {
+	if err := h.pictures.Upload(userID, imageBytes, req.Version); err != nil {
 		switch err := err.(type) {
 		case services.ErrInvalidInput:
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -68,10 +72,8 @@ func (h *ProfilePictureHandler) Get(w http.ResponseWriter, r *http.Request) {
 	pic, err := h.pictures.Get(userID, targetID)
 	if err != nil {
 		switch err := err.(type) {
-		case services.ErrNotAccepted:
-			writeError(w, http.StatusForbidden, err.Error())
 		case services.ErrNotFound:
-			writeError(w, http.StatusNotFound, "no profile picture")
+			writeError(w, http.StatusNotFound, err.Error())
 		default:
 			writeError(w, http.StatusInternalServerError, "failed to get profile picture")
 		}
@@ -79,8 +81,7 @@ func (h *ProfilePictureHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, models.ProfilePictureResponse{
-		Ciphertext: base64.StdEncoding.EncodeToString(pic.Ciphertext),
-		Nonce:      base64.StdEncoding.EncodeToString(pic.Nonce),
-		Version:    pic.Version,
+		ImageData: base64.StdEncoding.EncodeToString(pic.ImageData),
+		Version:   pic.Version,
 	})
 }

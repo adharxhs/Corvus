@@ -26,10 +26,16 @@ func (r *Registry) Register(c *Client) {
 	r.clients[c.UserID] = c
 }
 
-func (r *Registry) Unregister(userID string) {
+// UnregisterIfCurrent removes the user from the registry only if the stored
+// client is the same one that called this (i.e. it hasn't been superseded by
+// a newer reconnection). This prevents a reconnecting user from being
+// unregistered by the deferred cleanup of an old connection.
+func (r *Registry) UnregisterIfCurrent(userID string, expected *Client) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.clients, userID)
+	if cur, ok := r.clients[userID]; ok && cur == expected {
+		delete(r.clients, userID)
+	}
 }
 
 func (r *Registry) Get(userID string) (*Client, bool) {

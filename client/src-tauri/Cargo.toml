@@ -22,7 +22,13 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-aes-gcm = "0.10"
 base64 = "0.22"
-rand = "0.8"
+crypto = { path = "../../crypto" }
+
+# CRITICAL: DoubleRatchetSession::decrypt uses std::panic::catch_unwind to
+# surface upstream authentication failures (double-ratchet-2 has no fallible
+# decrypt path). Switching to "abort" makes the wrapper a no-op and a tampered
+# ciphertext panics the app. This MUST stay panic = "unwind".
+[profile.release]
+panic = "unwind"
 

@@ -253,7 +253,7 @@ Client→server message types (via the same WebSocket):
 
 | Type | Payload |
 |---|---|
-| `direct_message` | `{"recipient_id": "...", "ciphertext": "...", "ratchet_header": "..."}` |
-| `group_message` | `{"group_id": "...", "ciphertext": "...", "key_id": ..., "counter": ...}` |
-| `sender_key_distribution` | `{"group_id": "...", "distribution": "..."}` |
+| `message` | `{"recipient_id": "...", "content": "<encrypted JSON>"}` — content is a JSON string containing `{header, ciphertext, nonce}` (Double Ratchet encrypted) |
+| `group_message` | `{"group_id": "...", "content": "<encrypted JSON>"}` — content is a JSON string containing `{group_id, sender_id, key_id, iteration, ciphertext, nonce}` (Sender Key encrypted) |
+| `sender_key_distribution` | `{"group_id": "...", "sender_id": "...", "key_id": N, "chain_key": "base64...", "iteration": N}` |
 | `profile_picture_updated` | `{"version": 2}` |

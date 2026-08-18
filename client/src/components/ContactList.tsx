@@ -23,11 +23,12 @@ export function ContactList({ contacts, conversations, onClickContact, onSendReq
       {contacts.length === 0 && <p className="sheet-hint">No contacts yet</p>}
       {contacts.map((contact) => {
         const conversation = conversations.find((c) => c.peerId === contact.id);
+        const displayName = contact.username || `User ${shortId(contact.id)}`;
         return (
           <button key={contact.id} type="button" className="contact-list-item" onClick={() => onClickContact(contact)}>
-            <span className="contact-avatar">{(contact.username ?? shortId(contact.id)).slice(0, 1).toUpperCase()}</span>
+            <span className="contact-avatar">{displayName.slice(0, 1).toUpperCase()}</span>
             <span className="contact-main">
-              <span className="contact-name">{contact.username ?? shortId(contact.id)}</span>
+              <span className="contact-name">{displayName}</span>
               {conversation && <span className="contact-last">{conversation.lastMessage}</span>}
             </span>
             <span className={`presence-dot presence-${contact.presence}`} />

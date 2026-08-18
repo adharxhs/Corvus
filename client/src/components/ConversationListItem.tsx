@@ -10,10 +10,14 @@ interface ConversationListItemProps {
 }
 
 export function ConversationListItem({ conversation, active, presence, onClick }: ConversationListItemProps) {
-  const title = conversation.title || shortId(conversation.peerId);
+  const title = conversation.title || (conversation.kind === "group" ? `Group ${shortId(conversation.peerId)}` : `User ${shortId(conversation.peerId)}`);
   return (
     <button type="button" className={`conversation-item ${active ? "active" : ""}`} onClick={onClick}>
-      <AppAvatar label={title} presence={conversation.kind === "dm" ? presence : undefined} />
+      <AppAvatar
+        label={title}
+        userId={conversation.kind === "dm" ? conversation.peerId : undefined}
+        presence={conversation.kind === "dm" ? presence : undefined}
+      />
       <span className="conversation-main">
         <span className="conversation-row">
           <strong>{title}</strong>

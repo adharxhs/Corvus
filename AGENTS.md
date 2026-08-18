@@ -4,9 +4,9 @@ End-to-end encrypted messaging platform with three components: client (Tauri 2 +
 
 ## Layout and current state
 
-- `client/` — Tauri 2 + React 19 + TypeScript + Vite 7. Fully implemented: auth, chat UI, groups, contacts, settings/themes, profile pictures, protocol layer, WebSocket service with reconnection.
-- `server/` — Go 1.26 module named `server`. Full implementation: auth (register/login/JWT), prekey bundle storage, WebSocket server with message dispatch, group management, relationships (chat requests), profile pictures, presence, and database migrations. All via SQLite (modernc.org/sqlite).
-- `crypto/` — Rust crate implementing X3DH, Double Ratchet, Sender Keys, identity/prekey lifecycle, serialization, and an `InMemoryStore` trait boundary. Fully implemented; all 12 tests pass.
+- `client/` — Tauri 2 + React 19 + TypeScript + Vite 7. Fully implemented: auth, chat UI, groups, contacts, settings/themes, profile pictures, protocol layer, WebSocket service with reconnection. Chat screen has persistent header, profile pics on every message, group name support, member join system messages, and a participants list with avatars/presence in group settings. **E2EE integrated**: `src-tauri/src/crypto_manager.rs` wraps the crypto crate, `commands.rs` exposes 15 Tauri IPC commands, `services/crypto.ts` provides TypeScript invoke wrappers. Messages are encrypted before sending and decrypted on receipt.
+- `server/` — Go 1.26 module named `server`. Full implementation: auth (register/login/JWT), prekey bundle storage, WebSocket server with message dispatch, group management (create/get/rename with names, invites, membership), relationships (chat requests), profile pictures, presence, member-join broadcasts, and database migrations (12). All via SQLite (modernc.org/sqlite).
+- `crypto/` — Rust crate implementing X3DH, Double Ratchet, Sender Keys, identity/prekey lifecycle, serialization, and an `InMemoryStore` trait boundary. Fully implemented; all 12 tests pass. **Linked to Tauri client** as a path dependency (`crypto = { path = "../../crypto" }`).
 - `shared/` — planned protocol docs/schemas only; must stay documentation-only.
 - CI, linter: not yet set up in repo.
 
@@ -34,11 +34,13 @@ All authenticated routes require `Authorization: Bearer <JWT>`.
 | GET | `/chat-requests` | List incoming pending requests |
 | POST | `/chat-request/{requester_id}/accept` | Accept a request |
 | POST | `/chat-request/{requester_id}/reject` | Reject a request (silent) |
-| POST | `/groups` | Create group (auto-adds creator as member) |
+| POST | `/groups` | Create group (`{"group_id": "...", "name": "..."}`); auto-adds creator as member |
+| GET | `/groups/{group_id}` | Get group info (id, name, created_at) |
+| PUT | `/groups/{group_id}/name` | Rename group (`{"name": "..."}`); requires membership |
 | GET | `/groups/invites` | List pending group invites for authed user |
 | GET | `/groups/{group_id}/members` | List group members |
 | POST | `/groups/{group_id}/invite` | Invite user (requires accepted personal relationship + group membership) |
-| POST | `/groups/{group_id}/invite/accept` | Accept group invite → become member |
+| POST | `/groups/{group_id}/invite/accept` | Accept group invite → become member; broadcasts `member_joined` to all members |
 | DELETE | `/groups/{group_id}/member` | Leave group unilaterally |
 | POST | `/groups/{group_id}/profile-picture` | Upload group profile picture (must be member; newer version) |
 | GET | `/groups/{group_id}/profile-picture` | Get group profile picture (must be member) |
@@ -55,6 +57,7 @@ Server-originated WS control messages (not in HTTP surface):
 | `presence_snapshot` | `{"online": [user_id, ...]}` | Immediately after a client connects; lists online accepted contacts |
 | `presence` | `{"user_id": "...", "status": "online"\|"offline"}` | Broadcast to online accepted contacts on every connect/disconnect |
 | `group_profile_picture_updated` | `{"group_id": "...", "version": N}` | Broadcast to online group members when a group picture is uploaded |
+| `member_joined` | `{"group_id": "...", "user_id": "...", "username": "..."}` | Broadcast to all group members (online get immediately, offline get pending) when a user accepts a group invite |
 
 ## Android packaging
 
@@ -63,6 +66,7 @@ Server-originated WS control messages (not in HTTP surface):
 - Signing keystore: `client/src-tauri/keystore/corvus-release.keystore` (gitignored; properties in `keystore.properties`). Must keep the same keystore for upgrades over an installed app.
 - Server URL baked in at build time via `VITE_SERVER_URL`. The client derives both HTTP and WS URLs from this single value (`https://` → `wss://` automatically). Falls back to `http://localhost:8080` if unset.
 - Release builds disable `usesCleartextTraffic` by default — HTTPS endpoints required.
+- **`android:allowBackup="false"` MUST be set in `gen/android/app/src/main/AndroidManifest.xml`** on the `<application>` tag. Tauri 2's config schema doesn't expose this. Without it, Android auto-backup preserves localStorage across reinstalls/uninstalls — old sessions persist. Re-apply after `tauri android init` regenerates the directory.
 
 ## Server deployment (Termux + Tailscale Funnel)
 
@@ -91,5 +95,6 @@ Server-originated WS control messages (not in HTTP surface):
 - **Group invites**: require accepted personal-chat relationship between inviter and invitee. Invitee must accept before becoming a member. Leave is unilateral.
 - **Profile pictures**: encrypted client-side under per-account profile key. Server stores only ciphertext + nonce. `GET /profile-picture/{id}` gated behind accepted relationship. Version strictly increases per upload; no key rotation per edit. `profile_picture_updated { version }` control message broadcast to accepted contacts via dispatcher.
 - **Prekey bundle fetch** (`GET /prekey/{id}`) stays ungated regardless of chat-request status; X3DH session establishment is decoupled from the accept step.
+- **E2EE session lifecycle**: On registration/login, the client generates an identity keypair + signed prekey + one-time prekeys, uploads the public bundle via `POST /prekey`. When initiating a chat, `start_session` performs X3DH; the shared secret is stored temporarily until Bob's ratchet public key arrives via `complete_alice_session`. Messages are encrypted via `encrypt_message` (Double Ratchet) or `encrypt_group_message` (Sender Keys) before being sent over WebSocket. Incoming messages are decrypted in the ChatContext message handler.
 - **Rate-limiting on username lookups**: deferred, standard mitigation to revisit later.
 - **Blocking**: deferred including profile-key rotation on block.
